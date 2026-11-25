@@ -66,3 +66,13 @@ Short ADR-style entries for technical choices made inside a step. Newest last.
 - Escape mask: our own branchless form (split backslash runs into even/odd-start runs with one addition). Unlike simdjson's "odd ends" mask, it also marks escaped backslashes, which escape validation needs. It's checked against a byte-by-byte reference for every run length at every position around block boundaries.
 - x86 is tested on this Mac by building for `x86_64-apple-darwin` and running under Rosetta with `ROSETTA_ADVERTISE_AVX=1`, so SSE2, AVX2 and pclmul all actually run.
 **Consequences:** All four implementations are proven equal locally. Rosetta speeds say nothing about real x86 hardware; measure on Windows before the release (step 12).
+
+## 011 · 2026-11-25 · Step 04 · Parallel builder: SIMD tokens + the reference state machine
+**Context:** Step 4c must equal the scalar reference exactly (node table, line table and validation result, including the error's offset and `expected` text) for any input and any chunk size, while running on all cores.
+**Decision:**
+- Phase A (parallel) summarizes chunks assuming no string or escape carry in. Phase B (sequential) fixes each chunk's real start state: an escape carried in flips only the byte after the leading backslash run, and the carry out only if the whole chunk is backslashes.
+- Phase C (parallel, in batches of 2 × threads chunks) emits one `u32` token per value / structural (kind in the top 4 bits, 28-bit offset, so chunks ≤ 256 MiB). Clean strings, exact literals/numbers and `"key":` pairs are pre-validated. Strings with a backslash or control byte, strings crossing a chunk end, and invalid scalar runs become *suspicious*.
+- A sequential consumer (overlapped with the next batch via `rayon::join`) drives the **same** `Parser` as the reference: `fast_token` applies a token exactly as `step` would, or declines. Declined and suspicious tokens go to the byte-level `step`; after a hand-off, `catch_up` steps until the next token so no byte is skipped (`null0`). All errors therefore come from the reference code itself.
+- Adaptive mode compacts the node table when it exceeds the budget: it keeps the depths that fit in half the budget, remaps parents and stack ids, and stores only those depths from then on. The automatic budget is max(25 % of the file, 16 MiB).
+- The spec's alternative (per-chunk grammar validation plus a parallel stitch) was not needed for the targets; see backlog I-003.
+**Consequences:** Exact equivalence is checked with 30k proptest cases × every classifier × 5 chunk sizes. 2 GB warm: 1.18 s (pretty), 1.94 s (minified). The sequential consumer (~0.9 s for 230 M tokens) is now the bottleneck.

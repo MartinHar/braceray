@@ -120,6 +120,12 @@ impl Node {
     pub(crate) fn set_child_count(&mut self, count: u32) {
         self.child_count = count;
     }
+
+    #[inline]
+    pub(crate) fn with_parent(mut self, parent: u32) -> Self {
+        self.parent = parent;
+        self
+    }
 }
 
 impl fmt::Debug for Node {

@@ -113,3 +113,54 @@ fn simd_scan_2g() {
         );
     }
 }
+
+/// Step 04 targets: full index of 2 GB warm < 5 s, memory ≤ 25 % of the file.
+#[test]
+#[ignore = "needs fixtures-data/orders_2g.json"]
+fn fast_index_2g() {
+    use braceray_core::index::{IndexOptions, build_index};
+    let Some(path) = fixture_2g() else { return };
+    // `BRACERAY_BIG_FILES=orders_2g.json` measures one file only (two 2 GB files may not
+    // both stay in the page cache, and then the runs aren't warm).
+    let names = std::env::var("BRACERAY_BIG_FILES")
+        .unwrap_or_else(|_| "orders_2g.json,orders_min_2g.json".to_owned());
+    for name in names.split(',') {
+        let path = path.with_file_name(name);
+        if !path.exists() {
+            continue;
+        }
+        let doc = Document::open(&path).unwrap();
+        for threads in [None, Some(1)] {
+            let opts = IndexOptions {
+                threads,
+                ..IndexOptions::default()
+            };
+            let start = Instant::now();
+            let index = build_index(
+                &doc,
+                &opts,
+                &braceray_core::CancelToken::new(),
+                &braceray_core::Progress::default(),
+            )
+            .unwrap();
+            let secs = start.elapsed().as_secs_f64();
+            assert!(index.is_valid());
+            let ratio = index.memory_bytes() as f64 / doc.len() as f64;
+            eprintln!(
+                "{name} threads {threads:?}: {secs:.2} s ({:.2} GB/s), {} nodes, depth limit {:?}, index {:.1} % of file",
+                doc.len() as f64 / secs / 1e9,
+                index.nodes().len(),
+                index.max_stored_depth(),
+                ratio * 100.0
+            );
+            assert!(
+                ratio <= 0.25,
+                "{name}: index is {:.1} % of the file",
+                ratio * 100.0
+            );
+            if threads.is_none() {
+                assert!(secs < 5.0, "{name}: {secs:.2} s");
+            }
+        }
+    }
+}

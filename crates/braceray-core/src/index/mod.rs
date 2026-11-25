@@ -1,10 +1,15 @@
 //! Structural index: the container table, the line table and the validation result
 //! (architecture.md §3).
 
+mod build;
+mod chunk;
 mod lines;
 mod node;
+mod parser;
 pub mod scalar;
 pub mod simd;
+
+pub use build::{DEFAULT_CHUNK_SIZE, IndexOptions, build_bytes, build_bytes_with, build_index};
 
 use std::fmt;
 

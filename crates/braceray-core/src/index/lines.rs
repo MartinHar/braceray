@@ -29,6 +29,24 @@ impl LineTable {
         }
     }
 
+    /// Builds a table from per-block newline counts (block `k` covers
+    /// `k * LINE_BLOCK .. (k + 1) * LINE_BLOCK`).
+    pub(crate) fn from_block_counts(counts: impl IntoIterator<Item = u64>) -> Self {
+        let mut checkpoints = Vec::new();
+        let mut newlines = 0u64;
+        for c in counts {
+            checkpoints.push(newlines);
+            newlines += c;
+        }
+        if checkpoints.is_empty() {
+            checkpoints.push(0);
+        }
+        Self {
+            checkpoints,
+            newlines,
+        }
+    }
+
     /// Number of lines (newlines + 1).
     pub fn line_count(&self) -> u64 {
         self.newlines + 1
@@ -95,6 +113,10 @@ mod tests {
             b[i] = b'\n';
         }
         let t = LineTable::build(&b);
+        assert_eq!(
+            LineTable::from_block_counts(b.chunks(LINE_BLOCK).map(count_newlines)),
+            t
+        );
         for off in [
             0,
             999,
