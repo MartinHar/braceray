@@ -13,8 +13,8 @@
 |---|---|
 | **Current step** | 04 — Structural index & validation |
 | **Status** | 🟦 In progress |
-| **Current sub-task** | 4b — SIMD classifier |
-| **Next action** | Implement `index/simd.rs` (scalar / NEON / SSE4.2 / AVX2 classifiers) + equivalence tests |
+| **Current sub-task** | 4c — parallel build |
+| **Next action** | Design + implement chunked parallel build (`index/build.rs`), equivalence vs scalar |
 | **Last updated** | 2026-11-25 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -264,7 +264,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 
 **Plan**
 - [x] 4a: `job.rs` (`CancelToken`, `Progress`); `index/{mod,node,lines,scalar}.rs`: 24-byte `Node`, `Index`, `Validation`, `JsonError` (char column), line table, scalar reference indexer (explicit stack, full RFC 8259 validation, optional depth limit); oracle tests vs serde (proptest), invalid manifest, deep_100k
-- [ ] 4b: `index/simd.rs` classifier (scalar / SSE4.2 / AVX2 / NEON, pclmul or shift-XOR prefix XOR), runtime dispatch, equivalence tests
+- [x] 4b: `index/simd/` classifier (scalar / SSE4.2 / AVX2 / NEON, pclmul or shift-XOR prefix XOR), runtime dispatch, equivalence tests
 - [ ] 4c: parallel build (chunks, prefix fix, per-chunk events + validation, stitch, adaptive mode, progress, cancel), `build_index` API; equivalence + chunk-size matrix
 - [ ] 4d: `nav.rs`, child iteration + LRU + checkpoints; criterion benches; 2 GB harness; fuzz crate `index_any_bytes`
 - [ ] Docs: PERF, DECISIONS, CHANGELOG, PROGRESS
@@ -280,11 +280,12 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [ ] `node_at_offset` + `path_of` give the same path as a serde walk for 10,000 random offsets.
 
 **Quality gates (last run)**
-- [x] fmt · [x] clippy · [x] tests (75 passed, 2 ignored big-file tests: core 20 unit + 11 document + 10 index_scalar + 5 doctests; gen-fixtures 14 + 9 + 4 + 1; app 1) · [x] cargo deny · benches n/a until 4d. Run 2026-11-25 after 4a.
+- [x] fmt · [x] clippy (aarch64 + x86_64-apple-darwin + x86_64-pc-windows-msvc) · [x] tests (82 passed, 3 ignored big-file tests: core 27 unit + 11 document + 10 index_scalar + 5 doctests; gen-fixtures 14 + 9 + 4 + 1; app 1; core also passes as x86_64 under Rosetta with AVX2) · [x] cargo deny · benches n/a until 4d. Run 2026-11-25 after 4b.
 
 **Progress notes**
 - 4a done: scalar reference indexer. 2,000 generated docs per run match the generator's own node table exactly, and 2,000 mutated docs agree with serde on validity (8 release runs ≈ 32k cases). All 12 invalid fixtures hit the manifest offset/line/column. 2 GB orders: 0.38 GB/s, 21.9 % memory (baseline).
-- Decisions: ADR 008 (24-byte node), ADR 009 (validation semantics, char columns, partial index).
+- 4b done: classifier with scalar / NEON / SSE2 / AVX2 (+pclmul) and runtime dispatch. All implementations equal on every byte value, 2,000 random blocks, 2,000 random multi-block inputs and an exhaustive backslash-run sweep. NEON scans 2 GB at 5.25 GB/s on one thread.
+- Decisions: ADR 008 (24-byte node), ADR 009 (validation semantics, char columns, partial index), ADR 010 (SSE2 instead of SSE4.2, dispatch, escape mask, Rosetta testing).
 
 ---
 

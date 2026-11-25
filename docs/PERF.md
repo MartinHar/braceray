@@ -18,3 +18,5 @@ Targets are in [specs/overview.md](specs/overview.md) → *Performance targets*.
 | 2026-11-25 | 03 | (step 03) | RSS growth after `Document::open` | orders_2g.json | M3P | +2.03 MiB (2,129,920 B) | target < 5 MB ✅; that's the 2 × 1 MiB identity hash window |
 | 2026-11-25 | 03 | (step 03) | `Document::open` of a 5 GiB sparse file (debug build) | temp file, `set_len` | M3P | 4.9 ms | `len()` correct |
 | 2026-11-25 | 04a | (step 04a) | `index::scalar::build` (test `document_big::scalar_index_2g`, release) | orders_2g.json | M3P | 5.72 s (0.38 GB/s), 19,603,166 nodes, 470.7 MB index (21.9 % of file) | reference only; fast builder comes in 4b/4c |
+| 2026-11-25 | 04b | (step 04b) | `simd::scan`, 1 thread (test `document_big::simd_scan_2g`, release) | orders_2g.json | M3P | neon 0.41 s (**5.25 GB/s**); scalar 5.66 s (0.38 GB/s) | classify + escape + in-string masks + structural count only; 169,690,851 structurals |
+| 2026-11-25 | 04b | (step 04b) | same, x86_64 build under Rosetta 2 (`ROSETTA_ADVERTISE_AVX=1`) | orders_2g.json | M3P (emulated) | avx2+pclmul 1.29 GB/s, sse2+pclmul 0.58 GB/s, scalar 0.30 GB/s | emulated, not representative of real x86 |

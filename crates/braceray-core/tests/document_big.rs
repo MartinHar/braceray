@@ -90,3 +90,26 @@ fn scalar_index_2g() {
         ratio * 100.0
     );
 }
+
+/// Single-thread throughput of the block scanner alone (classify + escape + string masks).
+#[test]
+#[ignore = "needs fixtures-data/orders_2g.json"]
+fn simd_scan_2g() {
+    use braceray_core::index::simd;
+    let Some(path) = fixture_2g() else { return };
+    let doc = Document::open(&path).unwrap();
+    for imp in simd::available() {
+        let start = Instant::now();
+        let mut state = simd::ScanState::default();
+        let mut structurals = 0u64;
+        simd::scan(&imp, doc.bytes(), &mut state, |_, b| {
+            structurals += u64::from(b.structurals().count_ones());
+        });
+        let secs = start.elapsed().as_secs_f64();
+        eprintln!(
+            "{:>14}: {secs:.2} s ({:.2} GB/s), {structurals} structurals",
+            imp.name,
+            doc.len() as f64 / secs / 1e9
+        );
+    }
+}

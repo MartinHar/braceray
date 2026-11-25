@@ -57,3 +57,12 @@ Short ADR-style entries for technical choices made inside a step. Newest last.
 - `JsonError.column` counts **characters** (what an editor shows). Tests check the manifest's byte column via `offset − line start + 1`.
 - Partial index: containers opened before the error are kept. Those still open end at the error offset and have `UNKNOWN_COUNT` children.
 **Consequences:** Validity agrees with serde on all property tests. A file with invalid UTF-8 inside a string is "valid" for Braceray (as for serde's `IgnoredAny`); display code must decode lossily.
+
+## 010 · 2026-11-25 · Step 04 · SIMD classifier details
+**Context:** Step 4b asks for scalar / SSE4.2 / AVX2 / NEON classifiers with runtime dispatch, and equivalence tests for each. Development happens on Apple Silicon.
+**Decision:**
+- The "SSE4.2" path only needs SSE2 instructions (`cmpeq`, `movemask`, `min_epu8`), so it requires SSE2, which every x86_64 CPU has. The scalar fallback then only runs on other architectures.
+- Dispatch: `simd::best()` picks once (cached in a `OnceLock`) a `Simd` value holding two plain function pointers, `classify` and `prefix_xor`. The x86 `#[target_feature]` functions sit behind private safe wrappers that `available()` hands out only after `is_x86_feature_detected!`.
+- Escape mask: our own branchless form (split backslash runs into even/odd-start runs with one addition). Unlike simdjson's "odd ends" mask, it also marks escaped backslashes, which escape validation needs. It's checked against a byte-by-byte reference for every run length at every position around block boundaries.
+- x86 is tested on this Mac by building for `x86_64-apple-darwin` and running under Rosetta with `ROSETTA_ADVERTISE_AVX=1`, so SSE2, AVX2 and pclmul all actually run.
+**Consequences:** All four implementations are proven equal locally. Rosetta speeds say nothing about real x86 hardware; measure on Windows before the release (step 12).

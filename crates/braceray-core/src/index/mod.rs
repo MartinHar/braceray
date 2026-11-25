@@ -4,6 +4,7 @@
 mod lines;
 mod node;
 pub mod scalar;
+pub mod simd;
 
 use std::fmt;
 
