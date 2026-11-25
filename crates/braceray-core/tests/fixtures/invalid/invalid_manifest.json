@@ -1,0 +1,86 @@
+[
+  {
+    "file": "invalid_truncated.json",
+    "error_offset": 14,
+    "line": 1,
+    "column": 15,
+    "description": "truncated: input ends inside an array"
+  },
+  {
+    "file": "invalid_trailing_comma_array.json",
+    "error_offset": 9,
+    "line": 1,
+    "column": 10,
+    "description": "trailing comma before ']'"
+  },
+  {
+    "file": "invalid_trailing_comma_object.json",
+    "error_offset": 8,
+    "line": 1,
+    "column": 9,
+    "description": "trailing comma before '}'"
+  },
+  {
+    "file": "invalid_missing_colon.json",
+    "error_offset": 5,
+    "line": 1,
+    "column": 6,
+    "description": "missing ':' after key"
+  },
+  {
+    "file": "invalid_missing_comma.json",
+    "error_offset": 3,
+    "line": 1,
+    "column": 4,
+    "description": "missing ',' between array elements"
+  },
+  {
+    "file": "invalid_bad_literal.json",
+    "error_offset": 4,
+    "line": 1,
+    "column": 5,
+    "description": "bad literal 'truX'"
+  },
+  {
+    "file": "invalid_control_char.json",
+    "error_offset": 8,
+    "line": 1,
+    "column": 9,
+    "description": "raw control character U+0001 inside a string"
+  },
+  {
+    "file": "invalid_unclosed_string.json",
+    "error_offset": 10,
+    "line": 1,
+    "column": 11,
+    "description": "unclosed string at end of input"
+  },
+  {
+    "file": "invalid_mismatched_bracket.json",
+    "error_offset": 5,
+    "line": 1,
+    "column": 6,
+    "description": "'[' closed by '}'"
+  },
+  {
+    "file": "invalid_trailing_garbage.json",
+    "error_offset": 3,
+    "line": 1,
+    "column": 4,
+    "description": "extra data after the top-level value"
+  },
+  {
+    "file": "invalid_multiline.json",
+    "error_offset": 34,
+    "line": 5,
+    "column": 5,
+    "description": "missing ',' on line 5 of a pretty-printed file"
+  },
+  {
+    "file": "invalid_after_multibyte.json",
+    "error_offset": 20,
+    "line": 1,
+    "column": 21,
+    "description": "missing ',' after a value with multi-byte UTF-8 (column counts bytes)"
+  }
+]

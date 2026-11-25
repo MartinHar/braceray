@@ -25,3 +25,13 @@ strip = "symbols"
 inherits = "release"
 debug = true
 strip = "none"
+
+# Fixture tests generate and parse ~100 MB; keep them fast in debug/test builds.
+[profile.dev.package.gen-fixtures]
+opt-level = 3
+
+[profile.dev.package.serde_json]
+opt-level = 3
+
+[profile.dev.package.fastrand]
+opt-level = 3

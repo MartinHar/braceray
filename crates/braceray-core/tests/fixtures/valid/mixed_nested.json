@@ -1,0 +1,8 @@
+{
+  "users": [
+    {"id": 1, "name": "Anna", "email": "anna@example.com", "tags": ["vip"], "address": {"city": "Yerevan", "zip": null}},
+    {"id": 2, "name": "Aram", "email": "aram@example.com", "tags": [], "address": {"city": "Gyumri", "zip": "3101"}}
+  ],
+  "items": [{"price": 10}, {"price": 25.5}, {"price": 7}],
+  "meta": {"count": 2, "ok": true, "next": null, "deep": {"a": {"b": {"c": [1, [2, [3, [4]]]]}}}}
+}

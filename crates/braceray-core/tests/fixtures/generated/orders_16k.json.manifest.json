@@ -1,0 +1,25 @@
+{
+  "file": "orders_16k.json",
+  "kind": "orders",
+  "seed": 42,
+  "minified": false,
+  "bytes": 16776,
+  "records": 20,
+  "needles": [
+    {
+      "needle": "NEEDLE_RARE",
+      "count": 17,
+      "count_case_insensitive": 17
+    },
+    {
+      "needle": "needle_common",
+      "count": 0,
+      "count_case_insensitive": 0
+    },
+    {
+      "needle": "needle",
+      "count": 0,
+      "count_case_insensitive": 17
+    }
+  ]
+}

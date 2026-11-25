@@ -11,14 +11,14 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 01 — Project setup & CI |
-| **Status** | 🟦 In progress |
-| **Current sub-task** | Push to GitHub and get CI green |
-| **Next action** | Create public repo `MartinHar/braceray` (needs Martin's OK), push, check CI on 3 OSes, then mark step 01 ✅ |
+| **Current step** | 03 — File loading (mmap) ⬜ · step 01 still 🟦 (macOS CI job never got a runner) |
+| **Status** | ⬜ Not started (step 02 ✅) |
+| **Current sub-task** | — |
+| **Next action** | Confirm CI green on all 3 OSes, then mark step 01 ✅; then start step 03 (after Martin's review) |
 | **Last updated** | 2026-11-25 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
-| **CI on `main`** | — |
+| **CI on `main`** | Run 45647057010: Windows ✅ Linux ✅ deny ✅, macOS ❌ (GitHub couldn't get a macOS runner; re-run API returned HTTP 500) |
 
 ## Blockers / questions for Martin
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
@@ -30,7 +30,7 @@
 | # | Step | Phase | Status | Started | Finished | Commit / PR |
 |---|---|---|---|---|---|---|
 | 01 | Project setup & CI | MVP | 🟦 | 2026-11-25 | | |
-| 02 | Test fixture generator | MVP | ⬜ | | | |
+| 02 | Test fixture generator | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
 | 03 | File loading (mmap) | MVP | ⬜ | | | |
 | 04 | Structural index & validation | MVP | ⬜ | | | |
 | 05 | Index cache | MVP | ⬜ | | | |
@@ -48,7 +48,30 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 0 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 1 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+
+### MVP time estimate (made 2026-11-25, after step 01)
+About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
+
+| Step | Est. sessions | Notes |
+|---|---|---|
+| 02 Fixture generator | 1 | Simple, but everything after it depends on it |
+| 03 File loading (mmap) | 1 | Small and well-defined |
+| 04 Structural index & validation | 2–3 | Hardest step: SIMD scanning, < 5 s / 2 GB, ≤ 25 % memory |
+| 05 Index cache | 1 | |
+| 06 App shell | 1 | |
+| 07 Tree view | 2 | Virtualization, 1M-child expand < 200 ms, p99 frame time |
+| 08 Raw text view | 1–2 | |
+| 09 Search engine (core) | 2 | Perf targets (< 1.5 s plain, < 3 s case-insensitive) |
+| 10 Search UI | 1 | |
+| 11 Breadcrumbs & copy | 1 | |
+| 12 Hardening & v0.1.0 | 2–3 | Tests back on in CI, fuzzing, release packaging |
+
+**Risks that could stretch it**
+- Perf targets in steps 04 / 07 / 09: a first version that misses them could add 2–5 sessions of profiling and rework.
+- Windows: development is on macOS, so Windows problems only show up in CI, where they take longer to debug. Do at least one real Windows check once the UI exists.
+- Release packaging (step 12): the budget is $0 (`overview.md`), so builds ship unsigned / ad-hoc signed and users go through the Gatekeeper / SmartScreen "run anyway" flow. Getting the `.dmg` (universal binary, ad-hoc signing) and the Windows `.zip` right takes some trial runs of the release workflow.
+- Review time: each step ends with a stop for Martin's review; same-day reviews keep the calendar estimate.
 
 ---
 
@@ -155,6 +178,49 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 003: CI does not run tests for now (Martin's request); re-enable in step 12.
 
 
+### Step 02 — Test fixture generator
+**Status:** ✅ Done · **Started:** 2026-11-25 · **Finished:** 2026-11-25
+
+**Plan**
+- [x] Crate as lib + bin; deps via `cargo add` (clap, fastrand, itoa, rayon, serde, serde_json)
+- [x] Streaming JSON emitter (pretty 2-space / minified) into `Vec<u8>`; block-parallel record writer, per-record seeds, 8 MiB `BufWriter`, progress + elapsed
+- [x] `orders` (realistic records, Unicode, all escapes, needles `NEEDLE_RARE` ×17 and `needle_common` in 1 % of records → `<file>.manifest.json`)
+- [x] `ndjson`, `deep`, `wide`, `prim`, `string`
+- [x] `invalid` + `invalid_manifest.json` (incl. error at the end of a big file)
+- [x] `encoding` (BOM, UTF-16 LE/BE, UTF-32, empty, whitespace, binary) + manifest
+- [x] `diff` (a/b + `diff_manifest.json`)
+- [x] `all --max-size`
+- [x] Golden fixtures in `crates/braceray-core/tests/fixtures/` (< 50 KB each)
+- [x] Tests: determinism, validity (serde), needles, invalid offsets, diff manifest
+- [x] `tools/fixtures/README.md`; timings in `docs/PERF.md`
+
+**Acceptance criteria** (copied from the step file)
+- [x] `gen-fixtures all --max-size 100m` finishes in < 10 s and creates every fixture type. (0.81 s, 41 files / 852 MiB; test `all_creates_every_fixture_type`)
+- [x] Two runs with the same seed produce identical SHA-256 hashes. (`shasum -a 256` over all 41 files of two `all --max-size 100m` runs; test also compares 1- vs 4-thread output)
+- [x] Every generated valid file parses with `serde_json` (verify for sizes ≤ 100 MB in a test). (10 MB of each valid kind + deep 100k + ndjson per line)
+- [x] Every invalid file fails at exactly the manifest's offset (verify with serde's line/column). (serde reports the byte before a raw control char; mapped explicitly, see ADR 005)
+- [x] Needle counts in the manifest match a naive count (test on the 10 MB file). (pretty, minified and ndjson; also checked on the 2 GB file with `grep -o`: 17 / 24,503)
+- [x] 2 GB orders file generates in < 10 s on an NVMe machine (report the time in `docs/PERF.md`). (1.34–1.64 s on M3 Pro)
+
+**Quality gates (last run)**
+- [x] fmt · [x] clippy · [x] tests (31 passed: gen-fixtures 14 unit + 9 `generated` + 4 `invalid` + 1 doctest; core 1 unit + 1 doctest; app 1 kittest) · [x] cargo deny · benches n/a. Run 2026-11-25 on M3 Pro, macOS.
+
+**What was done**
+- `gen-fixtures` lib + bin: `all`, `orders`, `ndjson`, `deep`, `wide`, `prim`, `string`, `invalid`, `encoding`, `diff`, plus `--seed` and `-q`.
+- Per-record seeding and a block-parallel writer give output that doesn't depend on thread count, at ~1.5–1.9 GiB/s.
+- Manifests: needles (`<file>.manifest.json`), `invalid_manifest.json`, `encoding_manifest.json`, `diff_manifest.json`.
+- Golden fixtures: `valid/` (12 hand-written), `invalid/`, `encoding/`, `generated/`. A test fails if the generated ones go stale.
+- Dev-profile opt-level 3 for `gen-fixtures`, `serde_json` and `fastrand`, so the fixture tests run in about 0.6 s.
+
+**Known limitations / follow-ups**
+- `wide_1m.json` is ~24 MB, not the catalogue's "~50 MB" estimate. Shape is right (1M keys); size isn't significant.
+- `deep` is always minified (pretty indentation would grow quadratically with depth).
+- CI doesn't generate the 100 MB set yet (CI runs no tests for now, I-001). See I-002.
+
+**Decisions** (also in docs/DECISIONS.md)
+- 004: per-record seeds + block-parallel writer.
+- 005: invalid-fixture positions follow serde_json (byte column; control-char quirk).
+
 ---
 
 ## Session log
@@ -167,6 +233,12 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-25 20:30 · Step 01 / 02
+- Did: added the MVP time estimate; CI run for step 01 checked (macOS job not picked up by GitHub, not a code failure); step 02 implemented end to end.
+- Tests: 31 passed, 0 failed · fmt/clippy/deny clean · 2 GB orders in 1.3–1.6 s · `all --max-size 100m` 0.81 s, SHA-256 identical across runs
+- Commits: step 02 commit (see git log)
+- Next: push, confirm CI green on all 3 OSes → step 01 ✅; Martin reviews step 02; then step 03
 
 ### 2026-11-25 19:40 · Step 01
 - Did: repo layout + `git init`; workspace, crates, config, deny, CI workflow, placeholder icon, docs.
@@ -182,3 +254,4 @@ Issues found during the build that are not fixed yet.
 | ID | Found in step | Severity | Description | Planned fix (step) | Status |
 |---|---|---|---|---|---|
 | I-001 | 01 | Low | CI doesn't run `cargo test` (Martin's request); egui_kittest harness not proven in CI | 12 | Open |
+| I-002 | 02 | Low | CI doesn't generate the 100 MB fixture set (testing-strategy says it should); add with the test step | 12 | Open |

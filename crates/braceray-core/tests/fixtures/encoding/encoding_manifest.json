@@ -1,0 +1,47 @@
+[
+  {
+    "file": "utf8_plain.json",
+    "expect": "utf8",
+    "description": "plain UTF-8, no BOM"
+  },
+  {
+    "file": "bom_utf8.json",
+    "expect": "utf8-bom",
+    "description": "UTF-8 with BOM (EF BB BF); valid JSON after the BOM"
+  },
+  {
+    "file": "utf16le.json",
+    "expect": "utf16le",
+    "description": "UTF-16 LE with BOM (FF FE)"
+  },
+  {
+    "file": "utf16be.json",
+    "expect": "utf16be",
+    "description": "UTF-16 BE with BOM (FE FF)"
+  },
+  {
+    "file": "utf16le_nobom.json",
+    "expect": "utf16le",
+    "description": "UTF-16 LE without BOM (detect by NUL pattern)"
+  },
+  {
+    "file": "utf32le.json",
+    "expect": "utf32le",
+    "description": "UTF-32 LE with BOM (FF FE 00 00)"
+  },
+  {
+    "file": "empty.json",
+    "expect": "empty",
+    "description": "zero bytes"
+  },
+  {
+    "file": "whitespace.json",
+    "expect": "whitespace-only",
+    "description": "only JSON whitespace"
+  },
+  {
+    "file": "binary.bin",
+    "expect": "binary",
+    "description": "random binary data with NUL bytes"
+  }
+]

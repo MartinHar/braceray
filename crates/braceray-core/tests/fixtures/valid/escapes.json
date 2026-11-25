@@ -1,0 +1,12 @@
+{
+  "quote": "say \"hi\"",
+  "backslash": "C:\\temp\\",
+  "slash": "a\/b",
+  "controls": "\b\f\n\r\t",
+  "unicode": "\u00e9\u0531\u4e2d\u0416",
+  "surrogate_pair": "\ud83d\ude00",
+  "backslash_before_quote": "ends with backslash \\",
+  "triple": "\\\"",
+  "escaped_key_\"x\"": 1,
+  "nul": "\u0000"
+}

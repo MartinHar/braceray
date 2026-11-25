@@ -22,6 +22,11 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | android-activity | MIT OR Apache-2.0 |
 | android-properties | MIT |
 | android_system_properties | MIT OR Apache-2.0 |
+| anstream | MIT OR Apache-2.0 |
+| anstyle | MIT OR Apache-2.0 |
+| anstyle-parse | MIT OR Apache-2.0 |
+| anstyle-query | MIT OR Apache-2.0 |
+| anstyle-wincon | MIT OR Apache-2.0 |
 | arboard | MIT OR Apache-2.0 |
 | arrayref | BSD-2-Clause |
 | arrayvec | MIT OR Apache-2.0 |
@@ -61,9 +66,14 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | cc | MIT OR Apache-2.0 |
 | cfg-if | MIT OR Apache-2.0 |
 | cfg_aliases | MIT |
+| clap | MIT OR Apache-2.0 |
+| clap_builder | MIT OR Apache-2.0 |
+| clap_derive | MIT OR Apache-2.0 |
+| clap_lex | MIT OR Apache-2.0 |
 | clipboard-win | BSL-1.0 |
 | codespan-reporting | Apache-2.0 |
 | color | Apache-2.0 OR MIT |
+| colorchoice | MIT OR Apache-2.0 |
 | combine | MIT |
 | concurrent-queue | Apache-2.0 OR MIT |
 | core-foundation | MIT OR Apache-2.0 |
@@ -71,6 +81,8 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | core-graphics | MIT OR Apache-2.0 |
 | core-graphics-types | MIT OR Apache-2.0 |
 | crc32fast | MIT OR Apache-2.0 |
+| crossbeam-deque | MIT OR Apache-2.0 |
+| crossbeam-epoch | MIT OR Apache-2.0 |
 | crossbeam-utils | MIT OR Apache-2.0 |
 | crunchy | MIT |
 | cursor-icon | MIT OR Apache-2.0 OR Zlib |
@@ -133,6 +145,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | hashbrown | MIT OR Apache-2.0 |
 | hashbrown | MIT OR Apache-2.0 |
 | hashbrown | MIT OR Apache-2.0 |
+| heck | MIT OR Apache-2.0 |
 | hermit-abi | MIT OR Apache-2.0 |
 | hex | MIT OR Apache-2.0 |
 | icu_collections | Unicode-3.0 |
@@ -146,7 +159,9 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | idna_adapter | Apache-2.0 OR MIT |
 | image | MIT OR Apache-2.0 |
 | indexmap | Apache-2.0 OR MIT |
+| is_terminal_polyfill | MIT OR Apache-2.0 |
 | itertools | MIT OR Apache-2.0 |
+| itoa | MIT OR Apache-2.0 |
 | jni | MIT OR Apache-2.0 |
 | jni-macros | MIT OR Apache-2.0 |
 | jni-sys | MIT OR Apache-2.0 |
@@ -202,6 +217,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | objc2-ui-kit | MIT |
 | objc2-ui-kit | Zlib OR Apache-2.0 OR MIT |
 | once_cell | MIT OR Apache-2.0 |
+| once_cell_polyfill | MIT OR Apache-2.0 |
 | orbclient | MIT |
 | ordered-float | MIT |
 | ordered-stream | MIT OR Apache-2.0 |
@@ -244,6 +260,8 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | range-alloc | MIT OR Apache-2.0 |
 | raw-window-handle | MIT OR Apache-2.0 OR Zlib |
 | raw-window-metal | MIT OR Apache-2.0 |
+| rayon | MIT OR Apache-2.0 |
+| rayon-core | MIT OR Apache-2.0 |
 | read-fonts | MIT OR Apache-2.0 |
 | redox_syscall | MIT |
 | redox_syscall | MIT |
@@ -266,6 +284,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | serde | MIT OR Apache-2.0 |
 | serde_core | MIT OR Apache-2.0 |
 | serde_derive | MIT OR Apache-2.0 |
+| serde_json | MIT OR Apache-2.0 |
 | serde_repr | MIT OR Apache-2.0 |
 | shlex | MIT OR Apache-2.0 |
 | signal-hook-registry | MIT OR Apache-2.0 |
@@ -285,6 +304,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | stable_deref_trait | MIT OR Apache-2.0 |
 | static_assertions | MIT OR Apache-2.0 |
 | strict-num | MIT |
+| strsim | MIT |
 | syn | MIT OR Apache-2.0 |
 | syn | MIT OR Apache-2.0 |
 | synstructure | MIT |
@@ -317,6 +337,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | unicode-width | MIT OR Apache-2.0 |
 | url | MIT OR Apache-2.0 |
 | utf8_iter | Apache-2.0 OR MIT |
+| utf8parse | MIT OR Apache-2.0 |
 | utf_types | Apache-2.0 OR MIT |
 | uuid | Apache-2.0 OR MIT |
 | vello_common | Apache-2.0 OR MIT |
@@ -404,6 +425,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | zerotrie | Unicode-3.0 |
 | zerovec | Unicode-3.0 |
 | zerovec-derive | Unicode-3.0 |
+| zmij | MIT |
 | zune-core | MIT OR Apache-2.0 OR Zlib |
 | zune-jpeg | MIT OR Apache-2.0 OR Zlib |
 | zvariant | MIT |

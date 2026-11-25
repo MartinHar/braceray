@@ -1,0 +1,25 @@
+{
+  "file": "logs_16k.ndjson",
+  "kind": "ndjson",
+  "seed": 42,
+  "minified": true,
+  "bytes": 16400,
+  "records": 67,
+  "needles": [
+    {
+      "needle": "NEEDLE_RARE",
+      "count": 17,
+      "count_case_insensitive": 17
+    },
+    {
+      "needle": "needle_common",
+      "count": 1,
+      "count_case_insensitive": 1
+    },
+    {
+      "needle": "needle",
+      "count": 1,
+      "count_case_insensitive": 18
+    }
+  ]
+}
