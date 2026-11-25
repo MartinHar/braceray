@@ -1,0 +1,6 @@
+/target/
+/fixtures-data/
+.DS_Store
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/

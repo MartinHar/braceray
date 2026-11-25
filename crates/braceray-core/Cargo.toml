@@ -1,0 +1,11 @@
+[package]
+name = "braceray-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+description = "Core engine of Braceray: mmap, structural index, search (no UI)"
+
+[dependencies]

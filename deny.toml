@@ -1,0 +1,48 @@
+# cargo-deny configuration. Run: `cargo deny check`.
+# License policy is defined in CLAUDE.md → "License rules".
+
+[graph]
+all-features = false
+
+[advisories]
+# Fail on security vulnerabilities and unsound crates (cargo-deny default for vulnerabilities).
+unmaintained = "workspace"
+yanked = "deny"
+ignore = []
+
+[licenses]
+# MIT-compatible licenses only. No GPL / LGPL / AGPL / SSPL.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    # Apache-2.0 plus an extra permission (used by some wasm/wasi crates); strictly more permissive.
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unlicense",
+    "BSL-1.0",
+    "Unicode-3.0",
+    "CC0-1.0",
+    # Fonts bundled by egui (epaint_default_fonts: Ubuntu-Light, Hack, emoji-icon-font,
+    # NotoEmoji). These licenses cover the font files only and allow redistribution with
+    # the app.
+    "OFL-1.1",
+    "Ubuntu-font-1.0", # = "UFL-1.0" in CLAUDE.md
+]
+# The allow-list mirrors the project policy, so entries no current dependency uses are fine.
+unused-allowed-license = "allow"
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Workspace path dependencies have no version; that's fine.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

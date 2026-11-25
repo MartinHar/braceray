@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Braceray placeholder icon: "{ }" with a horizontal scan line. Final icon comes in step 12. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d2433"/>
+      <stop offset="1" stop-color="#0f141d"/>
+    </linearGradient>
+    <linearGradient id="scan" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4fd1c5" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#4fd1c5" stop-opacity="1"/>
+      <stop offset="1" stop-color="#4fd1c5" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <g fill="none" stroke="#e6edf7" stroke-width="56" stroke-linecap="round" stroke-linejoin="round">
+    <!-- left brace -->
+    <path d="M400 240 C330 240 320 280 320 340 L320 440 C320 480 300 512 250 512 C300 512 320 544 320 584 L320 684 C320 744 330 784 400 784"/>
+    <!-- right brace -->
+    <path d="M624 240 C694 240 704 280 704 340 L704 440 C704 480 724 512 774 512 C724 512 704 544 704 584 L704 684 C704 744 694 784 624 784"/>
+  </g>
+  <!-- scan line -->
+  <rect x="160" y="500" width="704" height="24" rx="12" fill="url(#scan)"/>
+</svg>

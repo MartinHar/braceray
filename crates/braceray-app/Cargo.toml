@@ -1,0 +1,20 @@
+[package]
+name = "braceray-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+description = "Read-only desktop viewer for huge JSON files"
+
+[[bin]]
+name = "braceray"
+path = "src/main.rs"
+
+[dependencies]
+eframe.workspace = true
+mimalloc.workspace = true
+
+[dev-dependencies]
+egui_kittest.workspace = true
