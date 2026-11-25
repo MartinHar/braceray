@@ -21,7 +21,7 @@
 | **CI on `main`** | — |
 
 ## Blockers / questions for Martin
-- [ ] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · OK to create it (public) with `gh repo create` and push `main` so CI can run?
+- [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
 <!-- Format: - [ ] YYYY-MM-DD · Step NN · question or blocker · what you need from me -->
 
 ---
@@ -95,7 +95,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - Workspace: `braceray-core` (`version()`), `braceray-app` (lib `BracerayApp` + bin `braceray`, eframe 0.37, mimalloc), `tools/fixtures` (`gen-fixtures` prints "todo").
 - Release binary: 7.4 MB (macOS arm64, stripped, fat LTO). Window verified: title "Braceray", 1400×900, "Drop a JSON file here" centred.
 - `deny.toml`: licenses / advisories / bans / sources all ok; egui fonts allowed via `OFL-1.1` + `Ubuntu-font-1.0` (commented). `THIRD_PARTY_LICENSES.md` generated.
-- CI: 3-OS matrix (fmt on Linux, clippy, test, release build) + `cargo deny` job.
+- CI: 3-OS matrix (fmt on Linux, clippy, release build — no tests, per Martin) + `cargo deny` job.
 
 **Known limitations / follow-ups**
 - CI has never run: no GitHub remote yet (waiting on Martin, see Blockers).
@@ -106,6 +106,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 **Decisions** (also in docs/DECISIONS.md)
 - 001: app crate = lib + thin binary, so kittest drives the real UI code.
 - 002: no `rust-version` pin (it made Cargo resolve old eframe 0.32).
+- 003: CI does not run tests for now (Martin's request); re-enable in step 12.
 -->
 
 ### Step 01 — Project setup & CI
@@ -140,7 +141,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - Workspace: `braceray-core` (`version()`), `braceray-app` (lib `BracerayApp` + bin `braceray`, eframe 0.37, mimalloc), `tools/fixtures` (`gen-fixtures` prints "todo").
 - Release binary: 7.4 MB (macOS arm64, stripped, fat LTO). Window verified: title "Braceray", 1400×900, "Drop a JSON file here" centred.
 - `deny.toml`: licenses / advisories / bans / sources all ok; egui fonts allowed via `OFL-1.1` + `Ubuntu-font-1.0` (commented). `THIRD_PARTY_LICENSES.md` generated.
-- CI: 3-OS matrix (fmt on Linux, clippy, test, release build) + `cargo deny` job.
+- CI: 3-OS matrix (fmt on Linux, clippy, release build — no tests, per Martin) + `cargo deny` job.
 
 **Known limitations / follow-ups**
 - CI has never run: no GitHub remote yet (waiting on Martin, see Blockers).
@@ -151,6 +152,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 **Decisions** (also in docs/DECISIONS.md)
 - 001: app crate = lib + thin binary, so kittest drives the real UI code.
 - 002: no `rust-version` pin (it made Cargo resolve old eframe 0.32).
+- 003: CI does not run tests for now (Martin's request); re-enable in step 12.
 
 
 ---
@@ -179,4 +181,4 @@ Issues found during the build that are not fixed yet.
 
 | ID | Found in step | Severity | Description | Planned fix (step) | Status |
 |---|---|---|---|---|---|
-| | | | | | |
+| I-001 | 01 | Low | CI doesn't run `cargo test` (Martin's request); egui_kittest harness not proven in CI | 12 | Open |

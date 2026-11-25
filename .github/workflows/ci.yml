@@ -45,8 +45,8 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Test
-        run: cargo test --workspace
+      # Tests are intentionally not run in CI for now (Martin's call, 2026-11-25).
+      # Run `cargo test --workspace` locally; re-enable here before the v0.1.0 release (step 12).
 
       - name: Release build
         run: cargo build --release -p braceray-app

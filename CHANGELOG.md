@@ -9,5 +9,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Cargo workspace with `braceray-core`, `braceray-app` (binary `braceray`) and `tools/fixtures` (`gen-fixtures`).
 - Empty "Braceray" window showing "Drop a JSON file here".
-- CI on Windows, macOS and Linux (fmt, clippy, tests, release build) plus a `cargo deny` job.
+- CI on Windows, macOS and Linux (fmt, clippy, release build) plus a `cargo deny` job. Tests run locally only for now.
 - MIT license, README, placeholder app icon.
