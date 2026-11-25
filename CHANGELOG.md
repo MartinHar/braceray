@@ -17,3 +17,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Structural index (reference implementation): RFC 8259 validation with an explicit stack (any depth), exact error position ("Invalid JSON at line 1, column 17 (offset 20): expected ',' or '}', found '\"'"), 24-byte container nodes, line table, cancellation and progress.
 - SIMD block classifier (NEON, SSE2, AVX2, `pclmulqdq`, scalar fallback) with runtime CPU detection: 5.25 GB/s single-threaded on Apple M3 Pro.
 - Parallel index builder (`build_index`): indexes and validates a 2 GB file in ~1.2 s on all cores, with exactly the same result and error messages as the reference; adaptive mode keeps the index under 25 % of the file; cancellable within 50 ms.
+- Navigation (`nav::Navigator`): root, children of any range (checkpoint every 1024 children), child counts, parents, value and JSON path at any byte offset, line/column; works in adaptive mode too.
+- Criterion benchmarks (`cargo bench -p braceray-core`) and a `cargo-fuzz` target `index_any_bytes`.

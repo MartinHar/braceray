@@ -76,3 +76,14 @@ Short ADR-style entries for technical choices made inside a step. Newest last.
 - Adaptive mode compacts the node table when it exceeds the budget: it keeps the depths that fit in half the budget, remaps parents and stack ids, and stores only those depths from then on. The automatic budget is max(25 % of the file, 16 MiB).
 - The spec's alternative (per-chunk grammar validation plus a parallel stitch) was not needed for the targets; see backlog I-003.
 **Consequences:** Exact equivalence is checked with 30k proptest cases × every classifier × 5 chunk sizes. 2 GB warm: 1.18 s (pretty), 1.94 s (minified). The sequential consumer (~0.9 s for 230 M tokens) is now the bottleneck.
+
+## 012 · 2026-11-25 · Step 04 · Navigation, oracles and fuzzing
+**Context:** Step 4d asks for child iteration with an LRU of child offset tables (budget 256 MB) and element checkpoints for containers with > 10,000 children. It also asks that `node_at_offset` + `path_of` match a serde walk, and for a `cargo-fuzz` crate.
+**Decision:**
+- One mechanism for every container: a **checkpoint table** (offset of every 1024th child plus the child count), built on first use and cached by container start offset in a byte-budgeted LRU (default 256 MB). Children are re-parsed from the nearest checkpoint, so a request costs at most ~1024 extra child parses. Full per-child offset tables aren't needed: 1M children take 6 ms to build and ~8 KB to keep.
+- Navigation works on a `Container` value (start, end, kind, optional `NodeRef`), so containers that adaptive mode didn't store expand the same way. Their end is found with the SIMD classifier.
+- `Location` = innermost stored node plus the steps below it; `path_of` adds each ancestor's key/index.
+- Path oracle: the proptest generator records every value's path and exact span while serializing. A serde walk can't give byte spans, so this oracle is strictly stronger.
+- `fuzz/` is a standalone crate, excluded from the workspace because it needs nightly. Its `Cargo.lock` is committed.
+- `[lib] bench = false` in `braceray-core`, so `cargo bench -- --quick` (the CLAUDE.md gate) only runs criterion.
+**Consequences:** Memory for navigation stays tiny. The UI (step 07) groups huge arrays using `children(range)` directly.

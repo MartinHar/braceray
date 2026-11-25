@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/braceray-core", "crates/braceray-app", "tools/fixtures"]
+# cargo-fuzz targets need nightly; build them with `cargo +nightly fuzz` from fuzz/.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.0.0"

@@ -24,3 +24,8 @@ Targets are in [specs/overview.md](specs/overview.md) → *Performance targets*.
 | 2026-11-25 | 04c | (step 04c) | same, 1 thread | orders_2g.json | M3P | 2.82 s (0.76 GB/s) | tokenizer alone ≈ 1.5 GB/s, classifier 5.25 GB/s |
 | 2026-11-25 | 04c | (step 04c) | same, all cores, warm | orders_min_2g.json | M3P | 1.94 s (1.11 GB/s), adaptive depth ≤ 1, 3,706,250 nodes, 4.2 % | |
 | 2026-11-25 | 04c | (step 04c) | same, all cores, first run after reading the other 2 GB file (partly from SSD) | orders_2g / orders_min_2g | M3P | 3.00 s / 3.74 s | not a true cold (no reboot); cold target < 10 s |
+| 2026-11-25 | 04d | (step 04d) | criterion `index_100m/scalar_index` (`--quick`) | orders_100m.json (generated, pretty) | M3P | 138 ms (725 MiB/s) | warm; the 2 GB scalar number above includes cold reads |
+| 2026-11-25 | 04d | (step 04d) | criterion `index_100m/simd_index_1thread` | orders_100m.json | M3P | 137 ms (732 MiB/s) | same as scalar: the sequential consumer dominates (I-003) |
+| 2026-11-25 | 04d | (step 04d) | criterion `index_100m/simd_index_parallel` | orders_100m.json | M3P | 63 ms (1.55 GiB/s) | |
+| 2026-11-25 | 04d | (step 04d) | criterion `children_of_1m_array` (fresh navigator: checkpoints + 50 children at 500,000) | `[0, 1, …, 999999]` (6.9 MB) | M3P | 6.0 ms | step 07 target "expand 1M children < 200 ms" |
+| 2026-11-25 | 04d | (step 04d) | `cargo +nightly fuzz run index_any_bytes` | libFuzzer, 120 s | M3P | 546,754 runs, 0 crashes, 0 mismatches | |

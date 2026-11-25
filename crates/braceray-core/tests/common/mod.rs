@@ -99,16 +99,43 @@ pub fn layout() -> impl Strategy<Value = Layout> {
 
 /// Serializes `tree` and returns the text plus the node table a correct indexer produces.
 pub fn serialize(tree: &J, layout: &Layout) -> (Vec<u8>, Vec<Node>) {
+    let (out, nodes, _) = serialize_with_values(tree, layout);
+    (out, nodes)
+}
+
+/// Path step of the oracle: object key (encoded body) or array index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Seg {
+    Key(String),
+    Index(u64),
+}
+
+/// Every value of a serialized tree: its path, the start of its key (or value) and the
+/// value's half-open span.
+#[derive(Debug, Clone)]
+pub struct ValueInfo {
+    pub path: Vec<Seg>,
+    pub first: usize,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// [`serialize`] plus the [`ValueInfo`] of every value.
+pub fn serialize_with_values(tree: &J, layout: &Layout) -> (Vec<u8>, Vec<Node>, Vec<ValueInfo>) {
     let mut s = Ser {
         out: Vec::new(),
         nodes: Vec::new(),
         layout,
         ws_i: 0,
+        path: Vec::new(),
+        values: Vec::new(),
     };
     s.ws();
+    let start = s.out.len();
     s.value(tree, 0, NO_PARENT);
+    s.record(start, start);
     s.ws();
-    (s.out, s.nodes)
+    (s.out, s.nodes, s.values)
 }
 
 struct Ser<'a> {
@@ -116,9 +143,20 @@ struct Ser<'a> {
     nodes: Vec<Node>,
     layout: &'a Layout,
     ws_i: usize,
+    path: Vec<Seg>,
+    values: Vec<ValueInfo>,
 }
 
 impl Ser<'_> {
+    fn record(&mut self, first: usize, start: usize) {
+        self.values.push(ValueInfo {
+            path: self.path.clone(),
+            first,
+            start,
+            end: self.out.len(),
+        });
+    }
+
     fn ws(&mut self) {
         if let Layout::Random(list) = self.layout {
             let w = list[self.ws_i % list.len()];
@@ -153,7 +191,11 @@ impl Ser<'_> {
                         self.out.push(b',');
                     }
                     self.newline(depth + 1);
+                    self.path.push(Seg::Index(i as u64));
+                    let start = self.out.len();
                     self.value(item, depth + 1, id);
+                    self.record(start, start);
+                    self.path.pop();
                 }
                 if !items.is_empty() {
                     self.newline(depth);
@@ -171,6 +213,7 @@ impl Ser<'_> {
                         self.out.push(b',');
                     }
                     self.newline(depth + 1);
+                    let first = self.out.len();
                     self.string(k);
                     self.ws();
                     self.out.push(b':');
@@ -179,7 +222,11 @@ impl Ser<'_> {
                     } else {
                         self.ws();
                     }
+                    self.path.push(Seg::Key(k.clone()));
+                    let start = self.out.len();
                     self.value(item, depth + 1, id);
+                    self.record(first, start);
+                    self.path.pop();
                 }
                 if !members.is_empty() {
                     self.newline(depth);

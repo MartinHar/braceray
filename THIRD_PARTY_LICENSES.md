@@ -257,6 +257,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | quick-xml | MIT |
 | quote | MIT OR Apache-2.0 |
 | r-efi | MIT OR Apache-2.0 OR LGPL-2.1-or-later |
+| rand_core | MIT OR Apache-2.0 |
 | range-alloc | MIT OR Apache-2.0 |
 | raw-window-handle | MIT OR Apache-2.0 OR Zlib |
 | raw-window-metal | MIT OR Apache-2.0 |

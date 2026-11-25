@@ -11,10 +11,10 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 04 — Structural index & validation |
-| **Status** | 🟦 In progress |
-| **Current sub-task** | 4d — navigation API, benches, fuzz |
-| **Next action** | Implement `nav.rs` (children, node_at_offset, path_of, LRU, checkpoints), criterion benches, fuzz crate |
+| **Current step** | 05 — Index cache |
+| **Status** | ⬜ Not started (step 04 ✅) |
+| **Current sub-task** | — |
+| **Next action** | Martin reviews step 04; then start step 05 |
 | **Last updated** | 2026-11-25 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -32,7 +32,7 @@
 | 01 | Project setup & CI | MVP | ✅ | 2026-11-25 | 2026-11-25 | a3a1b0a (CI run 45650452101) |
 | 02 | Test fixture generator | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
 | 03 | File loading (mmap) | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
-| 04 | Structural index & validation | MVP | 🟦 | 2026-11-25 | | |
+| 04 | Structural index & validation | MVP | ✅ | 2026-11-25 | 2026-11-25 | eac9cbd, 1c02d57, 16b7adc, 4d commit |
 | 05 | Index cache | MVP | ⬜ | | | |
 | 06 | App shell | MVP | ⬜ | | | |
 | 07 | Tree view | MVP | ⬜ | | | |
@@ -48,7 +48,7 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 3 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 4 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
 
 ### MVP time estimate (made 2026-11-25, after step 01)
 About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
@@ -89,7 +89,7 @@ Fill in with real measurements (details and machine info in `docs/PERF.md`). Mar
 | Simple regex (2 GB) | < 5 s | | | 13 | — |
 | First search result | < 200 ms | | | 10 | — |
 | `$..price` JSONPath (2 GB) | < 5 s | | | 14 | — |
-| Expand 1M-child node | < 200 ms | | | 07 | — |
+| Expand 1M-child node | < 200 ms | 6.0 ms core only (checkpoints + 50 children); UI in step 07 | M3P | 07 | — |
 | Scrolling p99 frame time | < 16 ms | | | 07/08/10 | — |
 | Index memory (% of file) | ≤ 25 % | 21.9 % (pretty) / 4.2 % (minified, adaptive) | M3P | 04 | ✅ |
 | Diff 2 × 1 GB, warm | < 30 s | | | 18 | — |
@@ -260,14 +260,14 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 007: `memory-stats` as a dev-dependency for the RSS check.
 
 ### Step 04 — Structural index & validation
-**Status:** 🟦 In progress · **Started:** 2026-11-25 · **Finished:** —
+**Status:** ✅ Done · **Started:** 2026-11-25 · **Finished:** 2026-11-25
 
 **Plan**
 - [x] 4a: `job.rs` (`CancelToken`, `Progress`); `index/{mod,node,lines,scalar}.rs`: 24-byte `Node`, `Index`, `Validation`, `JsonError` (char column), line table, scalar reference indexer (explicit stack, full RFC 8259 validation, optional depth limit); oracle tests vs serde (proptest), invalid manifest, deep_100k
 - [x] 4b: `index/simd/` classifier (scalar / SSE4.2 / AVX2 / NEON, pclmul or shift-XOR prefix XOR), runtime dispatch, equivalence tests
 - [x] 4c: parallel build (chunks, prefix fix, per-chunk events + validation, stitch, adaptive mode, progress, cancel), `build_index` API; equivalence + chunk-size matrix
-- [ ] 4d: `nav.rs`, child iteration + LRU + checkpoints; criterion benches; 2 GB harness; fuzz crate `index_any_bytes`
-- [ ] Docs: PERF, DECISIONS, CHANGELOG, PROGRESS
+- [x] 4d: `nav/` (Navigator, checkpoints + byte-budgeted LRU), criterion benches, 2 GB harness (`tests/document_big.rs`), fuzz crate `index_any_bytes`
+- [x] Docs: PERF, DECISIONS, CHANGELOG, PROGRESS, THIRD_PARTY_LICENSES
 
 **Acceptance criteria** (copied from the step file)
 - [x] For every golden fixture and 10,000 proptest cases: the SIMD/parallel index == the scalar reference index (node table, line table, validation result). (`tests/index_build.rs`: 3 properties × 10,000 cases (generated, mutated, random bytes) × every classifier; 5 runs native + 1 under Rosetta with SSE2/AVX2)
@@ -277,16 +277,28 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [x] 2 GB orders, warm: **< 5 s** total on reference machines (single-thread SIMD ≥ 1.5 GB/s; parallel limited by memory bandwidth). (1.18 s pretty / 1.94 s minified on M3 Pro; classifier 5.25 GB/s single-thread, tokenizer ≈ 1.5 GB/s; the parallel part is limited by the sequential consumer rather than memory bandwidth, I-003. Windows machine B not measured yet)
 - [x] Index memory ≤ 25 % of file size on `orders_2g.json`. Adaptive mode is triggered and correct on a file of tiny objects (e.g. `[{"a":1},{"a":1},…]`). (21.9 %; `adaptive_mode_on_tiny_objects` equals the reference built with the same depth limit; minified 2 GB uses depth ≤ 1, 4.2 %)
 - [x] Cancelling mid-build returns `Error::Cancelled` within 50 ms. (`cancel_returns_quickly`, 256 MB, cancel after 0/5/30 ms, passes in debug and release)
-- [ ] `node_at_offset` + `path_of` give the same path as a serde walk for 10,000 random offsets.
+- [x] `node_at_offset` + `path_of` give the same path as a serde walk for 10,000 random offsets. (`tests/nav.rs`: 1000 docs × 10 offsets, normal and adaptive mode; oracle = the generator's recorded paths and spans, stricter than a serde walk, ADR 012)
 
 **Quality gates (last run)**
-- [x] fmt · [x] clippy (workspace native + x86_64-apple-darwin; core for x86_64-pc-windows-msvc) · [x] tests (95 passed, 4 ignored big-file tests: core 29 unit + 11 document + 10 index_scalar + 10 index_build + 6 doctests; gen-fixtures 14 + 9 + 4 + 1; app 1) · [x] cargo deny · benches n/a until 4d. Run 2026-11-25 after 4c.
+- [x] fmt · [x] clippy (workspace native; core all targets for x86_64-apple-darwin; core lib for x86_64-pc-windows-msvc) · [x] tests (101 passed, 4 ignored big-file tests that pass with `--ignored`: core 31 unit + 11 document + 10 index_scalar + 10 index_build + 3 nav + 7 doctests; gen-fixtures 14 + 9 + 4 + 1; app 1) · [x] cargo deny · [x] benches (`--quick`, first numbers, recorded in PERF.md; nothing earlier to compare) · fuzz 120 s clean. Run 2026-11-25.
 
 **Progress notes**
 - 4a done: scalar reference indexer. 2,000 generated docs per run match the generator's own node table exactly, and 2,000 mutated docs agree with serde on validity (8 release runs ≈ 32k cases). All 12 invalid fixtures hit the manifest offset/line/column. 2 GB orders: 0.38 GB/s, 21.9 % memory (baseline).
 - 4b done: classifier with scalar / NEON / SSE2 / AVX2 (+pclmul) and runtime dispatch. All implementations equal on every byte value, 2,000 random blocks, 2,000 random multi-block inputs and an exhaustive backslash-run sweep. NEON scans 2 GB at 5.25 GB/s on one thread.
 - 4c done: `build_index` / `IndexOptions`. Exactly equal to the reference (incl. errors) by construction: SIMD tokens + the shared `Parser` state machine, hand-off to the byte-level parser for anything doubtful (ADR 011). The proptest found one real bug on the way (`null0`: bytes after a hand-off had no token), fixed with `catch_up`. 2 GB warm 1.18 s.
-- Decisions: ADR 008 (24-byte node), ADR 009 (validation semantics, char columns, partial index), ADR 010 (SSE2 instead of SSE4.2, dispatch, escape mask, Rosetta testing), ADR 011 (parallel builder design).
+- 4d done: `nav::Navigator` (root, children(range), child_count, parent, node_at_offset, path_of, line_col), checkpoint tables cached in an LRU; criterion benches; fuzz crate (546,754 runs clean).
+
+**What was done**
+- `index::{scalar::build, build_index, build_bytes, IndexOptions, Index, Node, Validation, JsonError, LineTable, simd}`, `nav::Navigator`, `job::{CancelToken, Progress}`.
+- Exact equivalence of the parallel builder with the reference is guaranteed by sharing the state machine (ADR 011) and checked by proptest and fuzzing.
+
+**Known limitations / follow-ups**
+- The sequential token consumer limits the parallel speed-up (2.2× on 12 cores); targets are met (I-003).
+- x86 speed only measured under Rosetta (I-004). A cold-after-reboot index time isn't measured yet.
+- Strings aren't UTF-8 validated and `\u` surrogates aren't paired, as with serde's `IgnoredAny` (ADR 009).
+- Fuzzing runs manually; a nightly CI job comes with step 12.
+
+- Decisions: ADR 008 (24-byte node), ADR 009 (validation semantics, char columns, partial index), ADR 010 (SSE2 instead of SSE4.2, dispatch, escape mask, Rosetta testing), ADR 011 (parallel builder design), ADR 012 (navigation, oracles, fuzz crate).
 
 ---
 
@@ -302,10 +314,10 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 -->
 
 ### 2026-11-25 23:50 · Step 03 / 04
-- Did: pushed step 03; step 04a (scalar reference), 4b (SIMD classifier) and 4c (parallel builder) done, each in its own commit. 4d (navigation, benches, fuzz) is next.
-- Tests: 95 passed, 0 failed, 4 ignored big-file tests (pass with `--ignored`) · fmt/clippy/deny clean · core also passes as x86_64 under Rosetta (SSE2/AVX2) · 2 GB warm index 1.18 s, 21.9 % memory
-- Commits: eac9cbd (4a), 1c02d57 (4b), 4c commit (see git log)
-- Next: step 4d
+- Did: pushed step 03; step 04 done in four commits: 4a scalar reference, 4b SIMD classifier, 4c parallel builder, 4d navigation + benches + fuzz. Installed the `x86_64-apple-darwin` target (Rosetta testing), nightly and `cargo-fuzz`.
+- Tests: 101 passed, 0 failed, 4 ignored big-file tests (pass with `--ignored`) · fmt/clippy/deny clean · core passes as x86_64 under Rosetta (SSE2/AVX2) · fuzz 546,754 runs clean · 2 GB warm index 1.18 s, 21.9 % memory
+- Commits: eac9cbd (4a), 1c02d57 (4b), 16b7adc (4c), 4d commit (see git log); not pushed yet
+- Next: Martin reviews step 04; then step 05 (index cache)
 
 ### 2026-11-25 21:30 · Step 01 / 03
 - Did: CI run 45650452101 green on all 3 OSes, so step 01 ✅. Step 03 (`Document`, mmap, encoding detection, file identity, change detection) implemented end to end.
