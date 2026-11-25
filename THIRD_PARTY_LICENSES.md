@@ -408,6 +408,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | xkbcommon-dl | MIT |
 | xkeysym | MIT OR Apache-2.0 OR Zlib |
 | xml-rs | MIT |
+| xxhash-rust | BSL-1.0 |
 | yeslogic-fontconfig-sys | MIT |
 | yoke | Unicode-3.0 |
 | yoke-derive | Unicode-3.0 |

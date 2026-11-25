@@ -2,6 +2,13 @@
 //!
 //! This crate has no UI dependencies and is fully unit-testable.
 
+pub mod document;
+pub mod error;
+mod mmap;
+
+pub use document::{Document, FileIdentity, Sniff};
+pub use error::{Encoding, Error};
+
 /// Returns the version of the Braceray core crate.
 ///
 /// # Example

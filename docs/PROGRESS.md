@@ -11,14 +11,14 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 03 — File loading (mmap) ⬜ · step 01 still 🟦 (macOS CI job never got a runner) |
-| **Status** | ⬜ Not started (step 02 ✅) |
+| **Current step** | 04 — Structural index & validation |
+| **Status** | ⬜ Not started (step 03 ✅) |
 | **Current sub-task** | — |
-| **Next action** | Confirm CI green on all 3 OSes, then mark step 01 ✅; then start step 03 (after Martin's review) |
+| **Next action** | Martin reviews step 03; then start step 04 |
 | **Last updated** | 2026-11-25 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
-| **CI on `main`** | Run 45647057010: Windows ✅ Linux ✅ deny ✅, macOS ❌ (GitHub couldn't get a macOS runner; re-run API returned HTTP 500) |
+| **CI on `main`** | Run 45650452101 (commit a3a1b0a): Windows ✅ macOS ✅ Linux ✅ deny ✅ |
 
 ## Blockers / questions for Martin
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
@@ -29,9 +29,9 @@
 ## Phase overview
 | # | Step | Phase | Status | Started | Finished | Commit / PR |
 |---|---|---|---|---|---|---|
-| 01 | Project setup & CI | MVP | 🟦 | 2026-11-25 | | |
+| 01 | Project setup & CI | MVP | ✅ | 2026-11-25 | 2026-11-25 | a3a1b0a (CI run 45650452101) |
 | 02 | Test fixture generator | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
-| 03 | File loading (mmap) | MVP | ⬜ | | | |
+| 03 | File loading (mmap) | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
 | 04 | Structural index & validation | MVP | ⬜ | | | |
 | 05 | Index cache | MVP | ⬜ | | | |
 | 06 | App shell | MVP | ⬜ | | | |
@@ -48,7 +48,7 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 1 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 3 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
 
 ### MVP time estimate (made 2026-11-25, after step 01)
 About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
@@ -133,7 +133,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 -->
 
 ### Step 01 — Project setup & CI
-**Status:** 🟦 In progress · **Started:** 2026-11-25 · **Finished:** —
+**Status:** ✅ Done · **Started:** 2026-11-25 · **Finished:** 2026-11-25
 
 **Plan**
 - [x] Move specs into repo layout (`CLAUDE.md`, `docs/PROGRESS.md`, `docs/specs/`), `git init`
@@ -146,15 +146,15 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [x] `.github/workflows/ci.yml` (3-OS matrix + deny job)
 - [x] Placeholder icon (SVG + 1024² PNG) in `crates/braceray-app/assets/`
 - [x] Run all quality gates locally; check release binary size
-- [ ] Create GitHub repo, push, CI green (needs Martin's OK)
+- [x] Create GitHub repo, push, CI green (needs Martin's OK)
 
 **Acceptance criteria** (copied from the step file)
 - [x] `cargo run -p braceray-app` opens a window titled "Braceray".
 - [x] `cargo build --release` succeeds; the release binary is < 15 MB.
 - [x] All four quality gates pass locally.
-- [ ] CI is green on all three OSes.
+- [x] CI is green on all three OSes. (run 45650452101 on a3a1b0a; the earlier macOS failure was GitHub not assigning a runner)
 - [x] `cargo deny check` passes (fonts bundled by egui are allowed explicitly with a comment).
-- [ ] `docs/PROGRESS.md` exists (from the template), step 01 is ✅ with its section, quality gates line and a session log entry filled in, and *Current status* points to step 02.
+- [x] `docs/PROGRESS.md` exists (from the template), step 01 is ✅ with its section, quality gates line and a session log entry filled in, and *Current status* points to step 02. (*Current status* had already moved on to step 02/03.)
 
 **Quality gates (last run)**
 - [x] fmt · [x] clippy · [x] tests (3 passed: 1 core unit, 1 core doctest, 1 egui_kittest) · [x] cargo deny · benches n/a — run 2026-11-25 on macOS (Apple Silicon), Rust 1.100.0
@@ -167,8 +167,8 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - CI: 3-OS matrix (fmt on Linux, clippy, release build — no tests, per Martin) + `cargo deny` job.
 
 **Known limitations / follow-ups**
-- CI has never run: no GitHub remote yet (waiting on Martin, see Blockers).
-- `braceray-core` is not yet a dependency of the app (added back when the app first uses it, step 03/06).
+- ~~CI has never run~~ Resolved: repo `MartinHar/braceray` is public, CI green on all 3 OSes.
+- `braceray-core` is not yet a dependency of the app (added when the app first uses it, step 06).
 - Window icon not wired into the app yet (final icon + embedding in step 12).
 - ~20 duplicate transitive crate versions from eframe/winit (warn only).
 
@@ -221,6 +221,44 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 004: per-record seeds + block-parallel writer.
 - 005: invalid-fixture positions follow serde_json (byte column; control-char quirk).
 
+### Step 03 — File loading (mmap)
+**Status:** ✅ Done · **Started:** 2026-11-25 · **Finished:** 2026-11-25
+
+**Plan**
+- [x] Deps via `cargo add`: `memmap2`, `xxhash-rust` (xxh3), `thiserror`; dev: `tempfile`, `memory-stats`, `serde_json`
+- [x] `error.rs`: `Error` (`Io`, `NotAFile`, `EmptyFile`, `WhitespaceOnly`, `Encoding(Encoding)`, `NotJson`, `Mmap`) + `Encoding` (`Utf16Le/Be`, `Utf32Le/Be`, `Binary`) with user-facing messages and convert commands
+- [x] `mmap.rs`: the only `unsafe` (map + `// SAFETY:`), `advise_sequential` / `advise_random` (no-op off Unix)
+- [x] `document/detect.rs`: BOM / NUL-pattern / binary detection on a 4 KiB sample, first-byte check, `Sniff`
+- [x] `document/mod.rs`: `Document::open`, `bytes`, `len`, `path`, `identity`, `has_changed_on_disk`, `sniff`; `FileIdentity` (canonical path, size, mtime, xxh3 head+tail 1 MiB)
+- [x] Tests: unit tests for detection; integration tests with `tempfile` + golden encoding fixtures; 5 GB sparse file; change detection; ignored 2 GB timing + memory test; doctest
+- [x] Docs: PERF.md (open time), DECISIONS.md, CHANGELOG, PROGRESS, THIRD_PARTY_LICENSES
+
+**Acceptance criteria** (copied from the step file)
+- [x] Opening the 2 GB fixture takes < 50 ms (measure in a test with `Instant`, `#[ignore]`d unless fixtures exist). (`tests/document_big.rs`: first open 0.23–5.6 ms, warm 0.14–0.35 ms)
+- [x] Process memory after open increases by < 5 MB (mapped pages not counted until touched). (+2.03 MiB RSS, measured with `memory-stats`)
+- [x] UTF-8 BOM is skipped; UTF-16 and binary files return the right error variant and message. (all 9 entries of `encoding_manifest.json`, plus UTF-16/32 LE/BE without BOM in unit tests)
+- [x] Empty and whitespace-only files give clear errors. ("This file is empty." / "This file contains only whitespace, no JSON value."; also BOM-only files)
+- [x] A 5 GB sparse file opens and `len()` is correct. (5 GiB + 3 B, opens in 4.9 ms)
+- [x] `has_changed_on_disk()` turns true after appending a byte or touching mtime. (also after deletion, where the OS allows it)
+
+**Quality gates (last run)**
+- [x] fmt · [x] clippy · [x] tests (55 passed, 1 ignored (`document_big`, passes with `--ignored`): core 13 unit + 11 integration + 2 doctests; gen-fixtures 14 + 9 + 4 + 1; app 1) · [x] cargo deny · benches n/a (no index/search code). Run 2026-11-25 on M3 Pro, macOS.
+
+**What was done**
+- `braceray_core::{Document, FileIdentity, Sniff, Error, Encoding}`. `open` maps the file read-only and touches only the first 4 KiB and 1 MiB at each end.
+- Encoding checks: UTF-8 BOM skipped; UTF-16/32 BOMs; UTF-16/32 without BOM from the NUL position pattern; binary (> 1 % control bytes, at least 8). UTF-16/32 messages include `iconv` and PowerShell commands.
+- Early checks: empty, BOM-only, whitespace-only, first byte not a JSON value start (`NotJson` with offset and byte), directories (`NotAFile`), missing files (`Io`), mmap failure (`Mmap`, "network drive?"). It never falls back to reading the file into RAM.
+- `sniff()`: NDJSON if the first line is a one-line container and another container line follows; otherwise JSON.
+
+**Known limitations / follow-ups**
+- Cold-cache open time not measured (needs a reboot or `sudo purge`).
+- `Advice::Sequential` / `Random` are no-ops on Windows (memmap2 only supports `madvise` on Unix); step 04 calls them around the index build.
+- SIGBUS on truncation by another process isn't caught. Mitigated by change detection (architecture.md §9); the app polls it from step 06.
+
+**Decisions** (also in docs/DECISIONS.md)
+- 006: offsets are relative to the content after the BOM; binary needs ≥ 8 control bytes.
+- 007: `memory-stats` as a dev-dependency for the RSS check.
+
 ---
 
 ## Session log
@@ -233,6 +271,12 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-25 21:30 · Step 01 / 03
+- Did: CI run 45650452101 green on all 3 OSes, so step 01 ✅. Step 03 (`Document`, mmap, encoding detection, file identity, change detection) implemented end to end.
+- Tests: 55 passed, 0 failed, 1 ignored (2 GB test passes with `--ignored`) · fmt/clippy/deny clean · 2 GB open < 6 ms, +2 MiB RSS · 5 GiB sparse file OK
+- Commits: step 03 commit (see git log)
+- Next: Martin reviews step 03; then step 04 (structural index & validation)
 
 ### 2026-11-25 20:30 · Step 01 / 02
 - Did: added the MVP time estimate; CI run for step 01 checked (macOS job not picked up by GitHub, not a code failure); step 02 implemented end to end.

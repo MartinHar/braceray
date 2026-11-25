@@ -13,3 +13,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MIT license, README, placeholder app icon.
 - `gen-fixtures`: deterministic, parallel test-data generator (`all`, `orders`, `ndjson`, `deep`, `wide`, `prim`, `string`, `invalid`, `encoding`, `diff`) with needle, invalid-position, encoding and diff manifests. 2 GB in ~1.5 s.
 - Golden test fixtures in `crates/braceray-core/tests/fixtures/` (valid edge cases, invalid, encoding, small generated samples).
+- `braceray_core::Document`: opens files of any size (tested with 5 GiB) in O(1) via a read-only memory map; skips a UTF-8 BOM; rejects UTF-16/32 (with convert commands for macOS and Windows), binary, empty, whitespace-only and non-JSON files with clear messages; records a `FileIdentity` (canonical path, size, mtime, xxh3 of the first and last 1 MiB) and detects changes on disk; sniffs JSON vs NDJSON.

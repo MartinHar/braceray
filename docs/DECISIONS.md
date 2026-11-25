@@ -33,3 +33,13 @@ Short ADR-style entries for technical choices made inside a step. Newest last.
 **Context:** Step 02 requires invalid files to "fail at exactly the manifest's offset", checked with serde's line/column.
 **Decision:** `error_offset` is the offending byte (file length for unexpected EOF); `line`/`column` are 1-based with a **byte** column. This matches serde everywhere except raw control characters in strings, where serde reports the byte before. The test maps that one case explicitly.
 **Consequences:** Step 04's validator should report the offending byte too, and can be checked against these manifests directly.
+
+## 006 · 2026-11-25 · Step 03 · Document offsets and early checks
+**Context:** Step 03 wants a BOM skip, encoding and binary detection and an early first-byte check, all in O(1).
+**Decision:** `Document::bytes()` is the content after a UTF-8 BOM. `len()` and every offset (including `Error::NotJson::offset`) are relative to it. `FileIdentity::size` is the raw file size. The NUL-pattern / binary checks use the first 4 KiB. Binary needs > 1 % control bytes **and at least 8 of them**, so a tiny file with one raw control character still opens and step 04's validator reports its exact position (`invalid_control_char.json` is 12 bytes). UTF-32 without a BOM is detected too (`Encoding::Utf32Le/Be`).
+**Consequences:** Index and search work on one slice with no BOM arithmetic. The first-byte scan is linear only while it skips leading whitespace, so it's instant except for pathological whitespace-only files.
+
+## 007 · 2026-11-25 · Step 03 · `memory-stats` for the RSS check
+**Context:** The criterion "memory grows < 5 MB after open" needs the process's resident memory on macOS and Windows.
+**Decision:** Use the `memory-stats` crate (MIT OR Apache-2.0) as a **dev-dependency** only, in the ignored `document_big` test.
+**Consequences:** No platform-specific code of our own. The app can reuse it later for the status-bar memory readout (step 06).
