@@ -1,0 +1,2 @@
+# Test fixtures are byte-exact (CRLF, BOM, UTF-16, binary): never convert line endings.
+crates/braceray-core/tests/fixtures/** -text
