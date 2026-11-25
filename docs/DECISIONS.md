@@ -43,3 +43,17 @@ Short ADR-style entries for technical choices made inside a step. Newest last.
 **Context:** The criterion "memory grows < 5 MB after open" needs the process's resident memory on macOS and Windows.
 **Decision:** Use the `memory-stats` crate (MIT OR Apache-2.0) as a **dev-dependency** only, in the ignored `document_big` test.
 **Consequences:** No platform-specific code of our own. The app can reuse it later for the status-bar memory readout (step 06).
+
+## 008 · 2026-11-25 · Step 04 · 24-byte packed `Node`
+**Context:** architecture.md §3.3 sketches a 28-byte node (32 with alignment). Pretty `orders` data has one container per ~110 bytes, so 32-byte nodes would be ~29 % of the file, over the 25 % budget.
+**Decision:** `Node` is 24 bytes: `start` (bit 63 = kind), `end` (low 40 bits) + depth (high 24 bits), `parent: u32`, `child_count: u32`. Limits: files ≤ 1 TiB (`Error::FileTooLarge`), depth ≤ 16,777,215 (a `JsonError` "less nesting"), ≤ 2³² − 1 stored nodes. Child counts that don't fit a `u32` are stored as `UNKNOWN_COUNT` and computed on demand.
+**Consequences:** `orders_2g.json` → 19.6 M nodes, 21.9 % of the file. Minified data (~72 B per container) still exceeds 25 % and will use adaptive mode (step 4c). Field access goes through accessor methods.
+
+## 009 · 2026-11-25 · Step 04 · Validation semantics of the index
+**Context:** The scalar reference indexer defines the output the fast builder must match exactly, including for invalid input. Step 04 also asks for character columns, while the invalid-fixture manifest (ADR 005) stores byte columns.
+**Decision:**
+- Grammar is RFC 8259, matching `serde_json`'s `IgnoredAny`: no UTF-8 validation inside strings and no `\u` surrogate pairing (both would need a full-file pass). Leading/trailing JSON whitespace only.
+- The error offset is the first offending byte (the length for an unexpected end); `expected` is a short phrase such as `',' or '}'`.
+- `JsonError.column` counts **characters** (what an editor shows). Tests check the manifest's byte column via `offset − line start + 1`.
+- Partial index: containers opened before the error are kept. Those still open end at the error offset and have `UNKNOWN_COUNT` children.
+**Consequences:** Validity agrees with serde on all property tests. A file with invalid UTF-8 inside a string is "valid" for Braceray (as for serde's `IgnoredAny`); display code must decode lossily.

@@ -4,10 +4,14 @@
 
 pub mod document;
 pub mod error;
+pub mod index;
+pub mod job;
 mod mmap;
 
 pub use document::{Document, FileIdentity, Sniff};
 pub use error::{Encoding, Error};
+pub use index::{Index, JsonError, Validation};
+pub use job::{CancelToken, Progress};
 
 /// Returns the version of the Braceray core crate.
 ///

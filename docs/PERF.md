@@ -17,3 +17,4 @@ Targets are in [specs/overview.md](specs/overview.md) → *Performance targets*.
 | 2026-11-25 | 03 | (step 03) | `Document::open` (test `document_big`, release) | orders_2g.json (2,147,484,144 B) | M3P | first open 0.23–5.6 ms, best warm 0.14–0.35 ms | 2 runs; target < 50 ms ✅. Cold (after reboot) not measured |
 | 2026-11-25 | 03 | (step 03) | RSS growth after `Document::open` | orders_2g.json | M3P | +2.03 MiB (2,129,920 B) | target < 5 MB ✅; that's the 2 × 1 MiB identity hash window |
 | 2026-11-25 | 03 | (step 03) | `Document::open` of a 5 GiB sparse file (debug build) | temp file, `set_len` | M3P | 4.9 ms | `len()` correct |
+| 2026-11-25 | 04a | (step 04a) | `index::scalar::build` (test `document_big::scalar_index_2g`, release) | orders_2g.json | M3P | 5.72 s (0.38 GB/s), 19,603,166 nodes, 470.7 MB index (21.9 % of file) | reference only; fast builder comes in 4b/4c |

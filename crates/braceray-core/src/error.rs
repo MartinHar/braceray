@@ -99,6 +99,14 @@ pub enum Error {
         found: u8,
     },
 
+    /// The job was cancelled through its [`CancelToken`](crate::CancelToken).
+    #[error("Cancelled.")]
+    Cancelled,
+
+    /// The file is larger than the index supports (offsets are stored in 40 bits).
+    #[error("This file is larger than 1 TiB, which Braceray can't index.")]
+    FileTooLarge,
+
     /// The OS refused to memory-map the file.
     #[error("Can't map this file (network drive?). Copy it locally. ({source})")]
     Mmap {

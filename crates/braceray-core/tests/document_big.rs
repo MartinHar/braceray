@@ -64,3 +64,29 @@ fn open_2g_is_fast_and_light() {
     );
     assert!(best < Duration::from_millis(50), "warm open took {best:?}");
 }
+
+/// Baseline for the SIMD / parallel builder: scalar reference throughput and index size.
+#[test]
+#[ignore = "needs fixtures-data/orders_2g.json"]
+fn scalar_index_2g() {
+    let Some(path) = fixture_2g() else { return };
+    let doc = Document::open(&path).unwrap();
+    let start = Instant::now();
+    let index = braceray_core::index::scalar::build(
+        doc.bytes(),
+        None,
+        &braceray_core::CancelToken::new(),
+        &braceray_core::Progress::default(),
+    )
+    .unwrap();
+    let secs = start.elapsed().as_secs_f64();
+    assert!(index.is_valid());
+    let ratio = index.memory_bytes() as f64 / doc.len() as f64;
+    eprintln!(
+        "scalar index 2 GB: {secs:.2} s ({:.2} GB/s), {} nodes, {} index bytes ({:.1} % of file)",
+        doc.len() as f64 / secs / 1e9,
+        index.nodes().len(),
+        index.memory_bytes(),
+        ratio * 100.0
+    );
+}

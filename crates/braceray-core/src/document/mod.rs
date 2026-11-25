@@ -10,6 +10,7 @@ use std::time::SystemTime;
 use xxhash_rust::xxh3::Xxh3;
 
 pub use detect::Sniff;
+pub(crate) use detect::is_json_ws;
 
 use crate::error::Error;
 use crate::mmap::MappedFile;
