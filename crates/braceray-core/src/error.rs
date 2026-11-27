@@ -107,6 +107,18 @@ pub enum Error {
     #[error("This file is larger than 1 TiB, which Braceray can't index.")]
     FileTooLarge,
 
+    /// A background thread couldn't be started.
+    #[error("Can't start a background thread: {source}")]
+    Thread {
+        /// The OS error.
+        #[source]
+        source: io::Error,
+    },
+
+    /// A background job stopped unexpectedly (a bug; please report it).
+    #[error("The background job stopped unexpectedly. Please report this as a bug.")]
+    JobPanicked,
+
     /// The OS refused to memory-map the file.
     #[error("Can't map this file (network drive?). Copy it locally. ({source})")]
     Mmap {

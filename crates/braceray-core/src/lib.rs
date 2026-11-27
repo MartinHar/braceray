@@ -13,7 +13,7 @@ pub mod nav;
 pub use document::{Document, FileIdentity, Sniff};
 pub use error::{Encoding, Error};
 pub use index::{Index, JsonError, Validation};
-pub use job::{CancelToken, Progress};
+pub use job::{CancelToken, JobEvent, JobHandle, Progress, Repaint};
 
 /// Returns the version of the Braceray core crate.
 ///

@@ -104,3 +104,24 @@ Short ADR-style entries for technical choices made inside a step. Newest last.
 **Context:** The stack lists `directories`, but its dependency `option-ext` is MPL-2.0, which isn't on the CLAUDE.md license allow-list, so `cargo deny check licenses` fails.
 **Decision:** `IndexCache::default_dir()` computes the same paths as `ProjectDirs::from("io.github", "martinhar", "braceray")` from the environment with `std` only: `$HOME/Library/Caches/io.github.martinhar.braceray` on macOS, `%LOCALAPPDATA%\martinhar\braceray\cache` on Windows, `$XDG_CACHE_HOME/braceray` or `~/.cache/braceray` elsewhere, plus `/index`. No license exception was added.
 **Consequences:** No new dependency. Windows uses the `LOCALAPPDATA` variable instead of the Known Folder API (the same value in practice). Martin confirmed this on 2026-11-27: keep the std version and use it for the settings dir in step 06 too. If `LOCALAPPDATA` / `HOME` is missing, there is no cache dir and the app just rebuilds the index each time.
+
+## 015 · 2026-11-27 · Step 06 · Job plumbing: `JobHandle<P, T>` on a dedicated thread
+**Context:** architecture.md §5 sketches `JobEvent<T>` with `Partial(T)` and `Done(T)`. The open job's partial result (the mapped `Arc<Document>`) has another type than its final result (`LoadedIndex`).
+**Decision:** `JobEvent<P, T>` / `JobHandle<P, T>` with separate partial and final types. `JobHandle::spawn` runs the work on a named `std::thread` (the work itself uses the rayon pool). Partials go through an mpsc channel; the final event is stored in a slot and announced with an end marker, so a worker that panics (debug builds) shows up as `Error::JobPanicked` instead of hanging. A result that arrives after `cancel()` counts as `Cancelled`. Dropping the handle cancels the job (closing a tab cancels its indexing). The repaint callback is `Repaint = Arc<dyn Fn() + Send + Sync>`.
+**Consequences:** Core stays UI-free; the app polls `try_recv` each frame. New errors: `Error::Thread`, `Error::JobPanicked`.
+
+## 016 · 2026-11-27 · Step 06 · App shell choices
+**Context:** Step 06 leaves a few technical choices open.
+**Decision:**
+- **Settings** are one JSON file in the OS config dir, computed with std like the cache dir (ADR 014), not eframe's `persistence` feature. Each field is parsed and range-checked on its own, so one bad value resets only that value. Saves go through a background thread (temp file + rename) in call order; `flush()` on exit and in tests.
+- **File dialog:** `rfd::AsyncFileDialog` is created on the UI thread (macOS needs that) and awaited with `pollster` on a worker; the UI keeps rendering.
+- **Blocking calls off the UI thread:** opening/mapping, the change check (`stat`), the "is this recent file missing?" check, cache size and cache clear all run as jobs. The memory readout (`memory-stats`, one syscall every 2 s) and `canonicalize` for tab de-duplication stay on the UI thread.
+- **Icons:** egui 0.37 bundles no emoji font, so the UI uses text labels ("Settings", "?", "×") rather than adding ~1 MB of emoji fonts.
+- **Inspection:** `egui_inspection` (feature `plugin`) is attached only under `cfg(debug_assertions)` on `127.0.0.1:5719` (`EGUI_INSPECTION=0` turns it off). The crate is still compiled in release builds, where its code is dead and removed by LTO.
+- **Test hook:** `AppConfig::hold_indexing` (hidden) pauses the open job after mapping, so kittest can see the indexing state and press Cancel deterministically.
+**Consequences:** Every interactive widget has an accessible name (kittest's accessibility check enforces it).
+
+## 017 · 2026-11-27 · Step 06 · macOS "Open With" / double-click: follow-up
+**Context:** Finder sends the files to open as an Apple Event (`application:openURLs:`), not as command-line arguments. winit 0.30 (used by eframe 0.37) doesn't forward it; the documented way is a custom `NSApplicationDelegate` declared with `objc2`, which needs `unsafe` in the app crate (not allowed by CLAUDE.md) and a bundled `.app` to test.
+**Decision:** Not implemented in step 06. The command line, the dialog, drag & drop and recent files all work. Revisit in step 12 (packaging), where the `.app` bundle and `Info.plist` document types exist (backlog I-007).
+**Consequences:** Until then, double-clicking a `.json` file associated with Braceray starts the app without opening the file.

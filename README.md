@@ -46,6 +46,29 @@ cargo build --release -p braceray-app # optimized binary at target/release/brace
 cargo test --workspace
 ```
 
+## Development
+
+### Driving the app from Claude Code (egui_mcp)
+Debug builds serve egui's inspection protocol (`egui_inspection`) on `127.0.0.1:5719`, so
+an MCP client can read the widget tree, click, type and take screenshots. Release builds don't
+include this.
+
+```sh
+cargo install egui_mcp           # MCP server for the egui_inspection protocol (MIT OR Apache-2.0)
+claude mcp add egui egui_mcp     # register it with Claude Code (check `egui_mcp --help` for the exact command)
+cargo run -p braceray-app -- path/to/file.json
+```
+
+`EGUI_INSPECTION=0` turns the server off; `EGUI_INSPECTION=127.0.0.1:6000` moves it to another
+port. It has no authentication, so keep it on loopback.
+
+### Where the app keeps its files
+- Settings and recent files: `~/Library/Application Support/io.github.martinhar.braceray/settings.json`
+  (macOS), `%APPDATA%\martinhar\braceray\config\settings.json` (Windows),
+  `~/.config/braceray/settings.json` (Linux).
+- Index cache: `~/Library/Caches/io.github.martinhar.braceray/index` (macOS),
+  `%LOCALAPPDATA%\martinhar\braceray\cache\index` (Windows), `~/.cache/braceray/index` (Linux).
+
 ## License
 
 MIT. See [LICENSE](LICENSE). Third-party licenses are listed in `THIRD_PARTY_LICENSES.md`.

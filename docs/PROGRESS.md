@@ -12,9 +12,9 @@
 | Field | Value |
 |---|---|
 | **Current step** | 06 — App shell |
-| **Status** | ⬜ Not started (step 05 ✅) |
-| **Current sub-task** | — |
-| **Next action** | Start step 06 (app shell) |
+| **Status** | 🟦 In progress (code complete, gates green) |
+| **Current sub-task** | Manual acceptance checks |
+| **Next action** | Martin: drag/resize during 2 GB indexing, native dialog, System theme, egui_mcp (install + register); then mark step 06 ✅ |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -23,6 +23,7 @@
 ## Blockers / questions for Martin
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
 - [x] 2026-11-27 · Step 05 · `directories` depends on `option-ext` (MPL-2.0, not on the allow-list) · Resolved: Martin chose to keep the std-only folder lookup (ADR 014); no `directories`, no MPL exception
+- [ ] 2026-11-27 · Step 06 · Installing `egui_mcp` was blocked by Claude Code's permission policy · Please run `cargo install egui_mcp` and register it (README → Development), or allow the install, so the egui_mcp criterion can be checked
 <!-- Format: - [ ] YYYY-MM-DD · Step NN · question or blocker · what you need from me -->
 
 ---
@@ -35,7 +36,7 @@
 | 03 | File loading (mmap) | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
 | 04 | Structural index & validation | MVP | ✅ | 2026-11-25 | 2026-11-25 | eac9cbd, 1c02d57, 16b7adc, 4d commit |
 | 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | bbc18fb |
-| 06 | App shell | MVP | ⬜ | | | |
+| 06 | App shell | MVP | 🟦 | 2026-11-27 | | |
 | 07 | Tree view | MVP | ⬜ | | | |
 | 08 | Raw text view | MVP | ⬜ | | | |
 | 09 | Search engine (core) | MVP | ⬜ | | | |
@@ -339,6 +340,50 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 013: cache format, full checksum instead of sampled, zero-copy `NodeStore`, advisory `index.json`.
 - 014: cache dir computed with std instead of `directories` (MPL-2.0 dependency); confirmed by Martin.
 
+### Step 06 — App shell
+**Status:** 🟦 In progress (code done, all gates green; waiting for Martin's manual checks) · **Started:** 2026-11-27 · **Finished:** —
+
+**Plan**
+- [x] Core `job.rs`: `JobHandle<P, T>`, `JobEvent<P, T>`, `JobContext`, `Repaint` callback, `JobHandle::spawn` (dedicated thread); unit tests (done, partial, failed, cancel, late result after cancel, panic, drop cancels, repaint count) + doctest
+- [x] App `settings.rs`: `Settings` (theme, cache on/off, max size, min size, max stored results, tree group size, recent files ≤ 15), JSON in the std config dir (ADR 014 style), per-field validation, background saver thread with `flush()`
+- [x] App `theme.rs`: Dark / Light / System, accent `#22D3EE` / `#0891B2`, 6 px rounding, spacing
+- [x] App `tab.rs`: `OpenDocument` (open + `load_or_build` job; Opening / Indexing / Ready / Failed / Cancelled; speed, ETA, cancel; change check every 5 s + on focus, off the UI thread)
+- [x] App `ui/`: toolbar + tabs (×, middle-click, Ctrl/Cmd+W), empty state (drop zone, Open file…, recent list, missing files greyed + Remove, Clear recent), indexing panel, error banner (Copy details, Details, Open anyway / Reload, Dismiss), status bar, settings window (Clear cache (size)), keyboard shortcuts dialog
+- [x] Opening: rfd async dialog (created on the UI thread, awaited with `pollster` on a worker), drag & drop with hover highlight, CLI arg, recent files, tab de-dup by canonical path
+- [x] Debug-only inspection plugin (`egui_inspection`, 127.0.0.1:5719), README *Development* section; macOS "Open With" → ADR 017 follow-up (I-007)
+- [x] kittest tests (`tests/shell.rs`, 10): open → indexing → done + cancel + retry, invalid banner, UTF-16 / empty / binary / missing messages, tabs open/switch/dedup/close, theme toggle + persistence, settings round trip + bad values, cache "from cache" + disabled cache writes nothing, recent files (open, missing + Remove, Clear), drag & drop, `?` dialog
+- [x] Manual run of the release app with the 2 GB fixture (progress, speed, ETA, "Indexed …", "from cache"); docs (CHANGELOG, DECISIONS 015–017, PERF, THIRD_PARTY_LICENSES, README)
+- [ ] Martin: manual checks listed under the acceptance criteria below
+
+**Acceptance criteria** (copied from the step file)
+- [ ] Opening the 2 GB fixture: the window stays responsive the whole time (drag the window and resize during indexing, no stutter); progress updates smoothly; Cancel works. — *Verified: release app shows live progress (87 %, 1.45 GB/s, ETA) and repaints every 50 ms; the build runs on a worker. Cancel verified in kittest. Not verified: dragging / resizing during indexing (needs a human hand); please check.*
+- [ ] Drag & drop, dialog, CLI arg and recent files all open files. — *CLI verified in the real app; drag & drop (injected drop event) and recent files in kittest. The native dialog was not clicked through; please check Open file… / Cmd+O.*
+- [x] Opening a second file opens a tab; switching tabs is instant. (`tabs_open_switch_dedup_and_close`; switching only changes an index, no work)
+- [x] Invalid JSON shows the banner with line/column; UTF-16 and empty files show their friendly messages. (`invalid_json_shows_banner_with_position`, `friendly_messages_for_unreadable_files`)
+- [ ] Theme switch is instant and persisted; "System" follows the OS. — *Instant + persisted verified (`theme_switch_is_instant_and_persisted`). "System" uses egui's `ThemePreference::System` (OS theme from winit); not checked by switching the macOS appearance.*
+- [x] Settings persist across restarts; the cache toggle really disables cache writes. (`settings_round_trip_through_the_window`, `reopen_shows_from_cache_and_disabled_cache_writes_nothing`)
+- [x] Reopening a cached file shows "from cache" in the status bar. (kittest + release app: "Index: from cache (0.04 s)" for the 2 GB fixture)
+- [ ] Debug build can be driven via egui_mcp (Claude Code: open a fixture through the UI and read the status bar). — *Inspection server verified listening on 127.0.0.1:5719 in the debug build. Installing `egui_mcp` (`cargo install egui_mcp`) was blocked by the session's permission policy, so it wasn't driven end to end. Needs Martin to install + register it (README → Development).*
+
+**Quality gates (last run)**
+- [x] fmt · [x] clippy (workspace, all targets) · [x] tests (144 passed, 0 failed, 5 ignored big-file tests; app: 8 unit + 10 shell + 1 window; core +5 job unit tests + 1 doctest) · [x] cargo deny. Benches not needed (no index/search change). Windows cross-clippy of the app can't run on macOS (mimalloc's C build needs MSVC); CI covers it. Run 2026-11-27 on M3 Pro.
+
+**What was done**
+- Core: `braceray_core::job::{JobHandle, JobEvent, JobContext, Repaint, no_repaint}`, `Error::{Thread, JobPanicked}`.
+- App modules: `app.rs` (state, actions, keyboard, drag & drop, dialog), `tab.rs`, `settings.rs`, `theme.rs`, `format.rs`, `ui/{toolbar, empty, body, banner, status, settings_window, shortcuts}.rs`. All files < 500 lines.
+- New deps (app): `braceray-core`, `rfd`, `pollster`, `egui_inspection` (plugin), `memory-stats`, `serde`, `serde_json`, `tracing`; dev: `tempfile`. All MIT / Apache / Zlib.
+
+**Known limitations / follow-ups**
+- macOS "Open With" / double-click doesn't open the file yet (ADR 017, I-007).
+- Status-bar memory is the resident set, which includes mapped file pages (I-008).
+- The tree area shows a placeholder until step 07; line:col appears once the tree sets a selection.
+- `index_progress` speed counts both passes of the build as file bytes (progress is 0 → 2 × length), which is what the user cares about.
+
+**Decisions** (also in docs/DECISIONS.md)
+- 015: `JobHandle<P, T>` on a dedicated thread, panic → `JobPanicked`, drop cancels.
+- 016: settings JSON file (not eframe persistence), rfd async + pollster, what runs off the UI thread, no emoji fonts, debug-only inspection, test hook.
+- 017: macOS "Open With" deferred to step 12.
+
 ---
 
 ## Session log
@@ -351,6 +396,13 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-27 · Step 06
+- Did: step 06 app shell: core job plumbing (`JobHandle<P, T>`), settings + recent files, theme, tabs, open by dialog / drag & drop / CLI / recent, indexing progress with Cancel, error banner, status bar, settings window, shortcuts dialog, change watcher, debug inspection server. 10 kittest tests. Release app checked with the 2 GB fixture (3.2 s build in the app, 0.04 s from cache).
+- Tests: 144 passed, 0 failed, 5 ignored · fmt/clippy/deny clean
+- Blocked: `cargo install egui_mcp` denied by the permission policy (see Blockers)
+- Commits: see git log (`feat: app shell (step 06)`); not pushed
+- Next: Martin's manual checks (drag/resize during indexing, dialog, System theme, egui_mcp), then mark 06 ✅ and start step 07
 
 ### 2026-11-27 · Step 05
 - Did: step 05 index cache end to end (`cache/` module, zero-copy `NodeStore`, tests, 2 GB re-open test, criterion bench). Dropped `directories` (MPL-2.0 dependency, question for Martin). Found that the `scalar_index` bench depends on code layout: the identical source runs at 139 ms or 280 ms depending on the build dir (I-005).
@@ -394,4 +446,6 @@ Issues found during the build that are not fixed yet.
 | I-003 | 04 | Low | Index build is limited by the sequential token consumer (~0.9 s of the 1.18 s for 2 GB). A per-chunk grammar check + parallel stitch could approach memory bandwidth. Targets are met, so only if later profiling needs it | 12 | Open |
 | I-004 | 04 | Low | x86 speed only measured under Rosetta; measure `fast_index_2g` on a real Windows x64 machine (reference machine B) | 12 | Open |
 | I-005 | 05 | Low | `index_100m/scalar_index` (the reference oracle only) runs at 139–147 ms or 270–300 ms for identical source depending on the build path: code-alignment sensitivity of its byte loop. Production builders are unaffected. Possible fix: `-C llvm-args=-align-loops=64` for benches, or restructure the loop if it ever matters | 12 | Open |
+| I-007 | 06 | Low | macOS "Open With" / double-click: winit 0.30 doesn't forward `application:openURLs:`; needs an objc2 app delegate (unsafe) and a bundled `.app` (ADR 017) | 12 | Open |
+| I-008 | 06 | Low | Status-bar memory shows the resident set, which includes mapped file and cache pages (2.24 GB right after building a 2 GB index). Show heap/private memory instead to match the "app memory excluding the mapped file" target | 12 | Open |
 | I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Open |

@@ -19,4 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parallel index builder (`build_index`): indexes and validates a 2 GB file in ~1.2 s on all cores, with exactly the same result and error messages as the reference; adaptive mode keeps the index under 25 % of the file; cancellable within 50 ms.
 - Navigation (`nav::Navigator`): root, children of any range (checkpoint every 1024 children), child counts, parents, value and JSON path at any byte offset, line/column; works in adaptive mode too.
 - Criterion benchmarks (`cargo bench -p braceray-core`) and a `cargo-fuzz` target `index_any_bytes`.
+- App shell: open files with the toolbar button or Ctrl/Cmd+O (native dialog, JSON / NDJSON / all files), drag & drop (with a drop highlight), the command line (`braceray file.json`) or the recent files list (last 15; missing files greyed out with "Remove"; "Clear recent").
+- Tabs for several files (close with ×, middle-click or Ctrl/Cmd+W); opening a file that is already open focuses its tab.
+- Indexing progress with percentage, speed, time left and Cancel; on completion "Indexed 2.15 GB in 3.2 s · 19,603,166 nodes". The window stays responsive while indexing.
+- Error banner for invalid JSON (line, column, offset, copyable details, "Open anyway"); clear messages for empty, UTF-16/32, binary and missing files.
+- Status bar: file size, index source ("Index: from cache (0.04 s)" / "Index: built (3.2 s)"), line:col of the selection, process memory.
+- Dark / Light / System theme with a cyan accent; settings window (theme, index cache on/off, max cache size, min file size, "Clear cache (size)", max stored search results, tree group size), saved to a JSON file in the OS config dir; bad values reset to defaults.
+- "File changed on disk. Reload?" banner (checked every 5 s and when the window gets focus).
+- Keyboard shortcuts dialog (`?`).
+- Debug builds can be driven by Claude Code through `egui_mcp` (egui inspection protocol on 127.0.0.1:5719).
+- `braceray_core::job::{JobHandle, JobEvent, Repaint}`: background jobs with partial results, progress, cancellation and a repaint callback.
 - Index cache (`braceray_core::cache`), on by default: the second open of a file loads its index from the OS cache dir (2 GB file: 14 ms instead of ~1–3 s). Stale, corrupted or old-format entries are detected, deleted and rebuilt. Entries are written in the background with temp file + atomic rename (safe with several app instances), and least-recently-used entries are evicted beyond 4 GiB. Settings: on/off, max size, minimum file size (20 MiB); `clear_index_cache()`.

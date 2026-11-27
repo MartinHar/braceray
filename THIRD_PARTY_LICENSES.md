@@ -50,8 +50,6 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | bit-set | Apache-2.0 OR MIT |
 | bit-vec | Apache-2.0 OR MIT |
 | bitflags | MIT OR Apache-2.0 |
-| bitflags | MIT OR Apache-2.0 |
-| block2 | MIT |
 | block2 | MIT |
 | blocking | Apache-2.0 OR MIT |
 | bumpalo | MIT OR Apache-2.0 |
@@ -60,8 +58,6 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | byteorder-lite | Unlicense OR MIT |
 | bytes | MIT |
 | calloop | MIT |
-| calloop | MIT |
-| calloop-wayland-source | MIT |
 | calloop-wayland-source | MIT |
 | cc | MIT OR Apache-2.0 |
 | cfg-if | MIT OR Apache-2.0 |
@@ -87,6 +83,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | crunchy | MIT |
 | cursor-icon | MIT OR Apache-2.0 OR Zlib |
 | dispatch | MIT |
+| dispatch2 | Zlib OR Apache-2.0 OR MIT |
 | displaydoc | MIT OR Apache-2.0 |
 | dlib | MIT |
 | document-features | MIT OR Apache-2.0 |
@@ -97,12 +94,14 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | egui | MIT OR Apache-2.0 |
 | egui-wgpu | MIT OR Apache-2.0 |
 | egui-winit | MIT OR Apache-2.0 |
+| egui_inspection | MIT OR Apache-2.0 |
 | egui_system_font_provider | MIT OR Apache-2.0 |
 | either | MIT OR Apache-2.0 |
 | emath | MIT OR Apache-2.0 |
 | endi | MIT |
 | enumflags2 | MIT OR Apache-2.0 |
 | enumflags2_derive | MIT OR Apache-2.0 |
+| enumn | MIT OR Apache-2.0 |
 | epaint | MIT OR Apache-2.0 |
 | epaint_default_fonts | MIT OR Apache-2.0 OR OFL-1.1 OR Ubuntu-font-1.0 |
 | equivalent | Apache-2.0 OR MIT |
@@ -118,7 +117,6 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | find-msvc-tools | MIT OR Apache-2.0 |
 | fixedbitset | MIT OR Apache-2.0 |
 | flate2 | MIT OR Apache-2.0 |
-| foldhash | Zlib |
 | foldhash | Zlib |
 | font-types | MIT OR Apache-2.0 |
 | fontique | Apache-2.0 OR MIT |
@@ -143,8 +141,6 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | half | MIT OR Apache-2.0 |
 | harfrust | MIT |
 | hashbrown | MIT OR Apache-2.0 |
-| hashbrown | MIT OR Apache-2.0 |
-| hashbrown | MIT OR Apache-2.0 |
 | heck | MIT OR Apache-2.0 |
 | hermit-abi | MIT OR Apache-2.0 |
 | hex | MIT OR Apache-2.0 |
@@ -165,7 +161,6 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | jni | MIT OR Apache-2.0 |
 | jni-macros | MIT OR Apache-2.0 |
 | jni-sys | MIT OR Apache-2.0 |
-| jni-sys | MIT OR Apache-2.0 |
 | jni-sys-macros | MIT OR Apache-2.0 |
 | jobserver | MIT OR Apache-2.0 |
 | js-sys | MIT OR Apache-2.0 |
@@ -179,7 +174,6 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | libredox | MIT |
 | linebender_resource_handle | Apache-2.0 OR MIT |
 | linux-raw-sys | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
-| linux-raw-sys | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | litemap | Unicode-3.0 |
 | litrs | MIT OR Apache-2.0 |
 | lock_api | MIT OR Apache-2.0 |
@@ -187,8 +181,8 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | memchr | Unlicense OR MIT |
 | memmap2 | MIT OR Apache-2.0 |
 | memoffset | MIT |
+| memory-stats | MIT OR Apache-2.0 |
 | mimalloc | MIT |
-| miniz_oxide | MIT OR Zlib OR Apache-2.0 |
 | miniz_oxide | MIT OR Zlib OR Apache-2.0 |
 | moxcms | BSD-3-Clause OR Apache-2.0 |
 | naga | MIT OR Apache-2.0 |
@@ -203,19 +197,16 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | num_enum_derive | BSD-3-Clause OR MIT OR Apache-2.0 |
 | objc-sys | MIT |
 | objc2 | MIT |
-| objc2 | MIT |
 | objc2-app-kit | MIT |
-| objc2-app-kit | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-foundation | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-graphics | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-text | Zlib OR Apache-2.0 OR MIT |
 | objc2-encode | MIT |
 | objc2-foundation | MIT |
-| objc2-foundation | MIT |
 | objc2-metal | Zlib OR Apache-2.0 OR MIT |
 | objc2-quartz-core | Zlib OR Apache-2.0 OR MIT |
 | objc2-ui-kit | MIT |
-| objc2-ui-kit | Zlib OR Apache-2.0 OR MIT |
+| objc2-uniform-type-identifiers | Zlib OR Apache-2.0 OR MIT |
 | once_cell | MIT OR Apache-2.0 |
 | once_cell_polyfill | MIT OR Apache-2.0 |
 | orbclient | MIT |
@@ -265,14 +256,13 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | rayon-core | MIT OR Apache-2.0 |
 | read-fonts | MIT OR Apache-2.0 |
 | redox_syscall | MIT |
-| redox_syscall | MIT |
-| redox_syscall | MIT |
 | renderdoc-sys | MIT OR Apache-2.0 |
+| rfd | MIT |
+| rmp | MIT |
+| rmp-serde | MIT |
 | roxmltree | MIT OR Apache-2.0 |
 | rustc-hash | Apache-2.0 OR MIT |
-| rustc-hash | Apache-2.0 OR MIT |
 | rustc_version | MIT OR Apache-2.0 |
-| rustix | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | rustix | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | rustversion | MIT OR Apache-2.0 |
 | same-file | Unlicense OR MIT |
@@ -283,6 +273,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | semver | MIT OR Apache-2.0 |
 | send_wrapper | MIT OR Apache-2.0 |
 | serde | MIT OR Apache-2.0 |
+| serde_bytes | MIT OR Apache-2.0 |
 | serde_core | MIT OR Apache-2.0 |
 | serde_derive | MIT OR Apache-2.0 |
 | serde_json | MIT OR Apache-2.0 |
@@ -298,7 +289,6 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | slotmap | Zlib |
 | smallvec | MIT OR Apache-2.0 |
 | smithay-client-toolkit | MIT |
-| smithay-client-toolkit | MIT |
 | smithay-clipboard | MIT |
 | smol_str | MIT OR Apache-2.0 |
 | spirv | Apache-2.0 |
@@ -307,13 +297,10 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | strict-num | MIT |
 | strsim | MIT |
 | syn | MIT OR Apache-2.0 |
-| syn | MIT OR Apache-2.0 |
 | synstructure | MIT |
 | sys-locale | MIT OR Apache-2.0 |
 | tempfile | MIT OR Apache-2.0 |
 | thiserror | MIT OR Apache-2.0 |
-| thiserror | MIT OR Apache-2.0 |
-| thiserror-impl | MIT OR Apache-2.0 |
 | thiserror-impl | MIT OR Apache-2.0 |
 | tiff | MIT |
 | tiny-skia | BSD-3-Clause |
@@ -338,7 +325,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | unicode-width | MIT OR Apache-2.0 |
 | url | MIT OR Apache-2.0 |
 | utf8_iter | Apache-2.0 OR MIT |
-| utf8parse | MIT OR Apache-2.0 |
+| utf8parse | Apache-2.0 OR MIT |
 | utf_types | Apache-2.0 OR MIT |
 | uuid | Apache-2.0 OR MIT |
 | vello_common | Apache-2.0 OR MIT |
@@ -385,8 +372,6 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | windows-numerics | MIT OR Apache-2.0 |
 | windows-result | MIT OR Apache-2.0 |
 | windows-strings | MIT OR Apache-2.0 |
-| windows-sys | MIT OR Apache-2.0 |
-| windows-sys | MIT OR Apache-2.0 |
 | windows-sys | MIT OR Apache-2.0 |
 | windows-targets | MIT OR Apache-2.0 |
 | windows-threading | MIT OR Apache-2.0 |
