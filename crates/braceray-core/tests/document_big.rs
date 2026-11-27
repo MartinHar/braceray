@@ -164,3 +164,60 @@ fn fast_index_2g() {
         }
     }
 }
+
+/// Step 05 target: re-opening the 2 GB file with the index cache takes < 1 s (warm).
+#[test]
+#[ignore = "needs fixtures-data/orders_2g.json"]
+fn cache_reopen_2g() {
+    use braceray_core::cache::{CacheSettings, IndexCache, IndexSource, load_or_build};
+    use braceray_core::index::IndexOptions;
+    use braceray_core::{CancelToken, Progress};
+    let Some(path) = fixture_2g() else { return };
+    let names = std::env::var("BRACERAY_BIG_FILES").unwrap_or_else(|_| "orders_2g.json".to_owned());
+    for name in names.split(',') {
+        let path = path.with_file_name(name);
+        if !path.exists() {
+            continue;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let cache = IndexCache::new(dir.path().to_owned(), CacheSettings::default());
+        let (opts, cancel, progress) = (
+            IndexOptions::default(),
+            CancelToken::new(),
+            Progress::default(),
+        );
+
+        let doc = Document::open(&path).unwrap();
+        let built = load_or_build(&doc, &opts, Some(&cache), &cancel, &progress).unwrap();
+        assert_eq!(built.source, IndexSource::Built);
+        let write_start = Instant::now();
+        built.pending_write.unwrap().join().unwrap().unwrap();
+        let write = write_start.elapsed();
+        let entry_bytes = cache.total_bytes();
+        drop(doc);
+
+        let mut times = Vec::new();
+        for _ in 0..5 {
+            let start = Instant::now();
+            let doc = Document::open(&path).unwrap();
+            let again = load_or_build(&doc, &opts, Some(&cache), &cancel, &progress).unwrap();
+            times.push(start.elapsed());
+            assert_eq!(again.source, IndexSource::Cache);
+            assert_eq!(again.index.nodes().len(), built.index.nodes().len());
+        }
+        let again = {
+            let doc = Document::open(&path).unwrap();
+            load_or_build(&doc, &opts, Some(&cache), &cancel, &progress).unwrap()
+        };
+        assert_eq!(*again.index, *built.index);
+        let best = times.iter().min().copied().unwrap_or_default();
+        eprintln!(
+            "{name}: build {:?}, cache write {write:?} ({:.0} MB), re-open first {:?}, best {best:?}; {}",
+            built.elapsed,
+            entry_bytes as f64 / 1e6,
+            times[0],
+            again.status_text()
+        );
+        assert!(times[0] < Duration::from_secs(1), "{name}: {:?}", times[0]);
+    }
+}

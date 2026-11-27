@@ -21,6 +21,34 @@ const TICK: usize = 1 << 20;
 /// Message for nesting beyond [`MAX_DEPTH`].
 const TOO_DEEP: &str = "less nesting (at most 16,777,215 levels)";
 
+/// Every `expected` text the parser can report. The index cache stores the text and maps it
+/// back through [`intern_expected`]; **add new messages here** (an unknown text only makes
+/// the cache entry unusable, so the index is rebuilt).
+const EXPECTED_TEXTS: &[&str] = &[
+    "',' or ']'",
+    "',' or '}'",
+    "'false'",
+    "'null'",
+    "'true'",
+    "':'",
+    "string key or '}'",
+    "string key",
+    "value or ']'",
+    "value",
+    "closing '\"'",
+    "closing '\"' (control characters must be escaped)",
+    "digit",
+    "end of input",
+    "escape character",
+    "hex digit",
+    TOO_DEEP,
+];
+
+/// The `&'static` version of an `expected` text, if the parser can produce it.
+pub(crate) fn intern_expected(text: &str) -> Option<&'static str> {
+    EXPECTED_TEXTS.iter().copied().find(|&t| t == text)
+}
+
 pub(crate) struct Fail {
     pub(crate) offset: usize,
     pub(crate) expected: &'static str,
@@ -344,7 +372,7 @@ impl<'a> Parser<'a> {
         }
         nodes.shrink_to_fit();
         Index {
-            nodes,
+            nodes: nodes.into(),
             lines,
             validation,
             max_stored_depth: self.max_stored_depth,

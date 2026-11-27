@@ -87,3 +87,20 @@ Short ADR-style entries for technical choices made inside a step. Newest last.
 - `fuzz/` is a standalone crate, excluded from the workspace because it needs nightly. Its `Cargo.lock` is committed.
 - `[lib] bench = false` in `braceray-core`, so `cargo bench -- --quick` (the CLAUDE.md gate) only runs criterion.
 **Consequences:** Memory for navigation stays tiny. The UI (step 07) groups huge arrays using `children(range)` directly.
+
+## 013 · 2026-11-27 · Step 05 · Index cache format and loading
+**Context:** Step 05 asks for an on-disk index cache that is safe against stale and corrupted entries and loads a 2 GB file's index in < 1 s, zero-copy via `bytemuck`. The spec suggested checksumming only sampled pages for entries over 256 MB.
+**Decision:**
+- One `<xxh3-128 of FileIdentity>.brx` per file. A 256-byte header holds magic, format version, app version, the file's size / content length / mtime (ns) / head-tail hash, the effective `memory_budget` (it changes the index in adaptive mode), counts, the validation result and the adaptive depth. The raw `Node` table follows (8-byte aligned), then the line checkpoints, then a checksum.
+- **Full checksum, not sampled:** xxh3-64 over the xxh3-64 of every 16 MiB block, computed on all cores. That's about 10 ms for the 471 MB entry of `orders_2g.json`, so sampling isn't needed, and every flipped byte is detected. After the checksum, cheap parallel checks run that navigation relies on (offsets ≤ length, parent before child, monotonic line table), as a second line of defence.
+- `Index` keeps its node table in a private `NodeStore`: an owned `Vec` after a build, or a view of the mapped entry (`Arc<MappedFile>` + range, `bytemuck::try_cast_slice`, so no new `unsafe`). `Node` derives `Pod`.
+- The error's `expected` text is stored as a string and mapped back to the parser's `&'static str` (`EXPECTED_TEXTS`). An unknown text makes the entry unusable, so the index is rebuilt.
+- Writes go to `<key>.<pid>.<n>.tmp` and are then renamed over the entry, with no fsync (a torn entry fails the checksum). Any bad entry is deleted on load (logged with `tracing`). Big-endian targets don't use the cache.
+- `index.json` (serde_json) holds the original path, size and last access per entry. It is advisory: eviction takes sizes from the directory listing, falls back to file mtime when an entry has no metadata, and deletes `.tmp` files older than 1 h. Concurrent instances can at worst lose a last-access update.
+- An entry larger than the whole size limit isn't written. `load_or_build` is the one call the app needs, and returns `IndexSource` + elapsed time for the status bar.
+**Consequences:** 2 GB re-open in 14 ms warm. A cached index uses page-cache memory (shared, evictable) instead of 471 MB of heap. On Windows, a mapped entry can't be deleted or replaced while another instance holds it; that case is handled (kept, counted as written) but not yet tested on Windows (I-006).
+
+## 014 · 2026-11-27 · Step 05 · Cache dir without the `directories` crate
+**Context:** The stack lists `directories`, but its dependency `option-ext` is MPL-2.0, which isn't on the CLAUDE.md license allow-list, so `cargo deny check licenses` fails.
+**Decision:** `IndexCache::default_dir()` computes the same paths as `ProjectDirs::from("io.github", "martinhar", "braceray")` from the environment with `std` only: `$HOME/Library/Caches/io.github.martinhar.braceray` on macOS, `%LOCALAPPDATA%\martinhar\braceray\cache` on Windows, `$XDG_CACHE_HOME/braceray` or `~/.cache/braceray` elsewhere, plus `/index`. No license exception was added.
+**Consequences:** No new dependency. Windows uses the `LOCALAPPDATA` variable instead of the Known Folder API (the same value in practice). This is an open question for Martin: allow MPL-2.0 for `option-ext`, or keep the std version (also for the settings dir in step 06).

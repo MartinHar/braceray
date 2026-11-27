@@ -47,6 +47,27 @@ impl LineTable {
         }
     }
 
+    /// Rebuilds a table from its parts (index cache). `None` unless the checkpoints
+    /// start at 0, never decrease and stay ≤ `newlines`.
+    pub(crate) fn from_parts(checkpoints: Vec<u64>, newlines: u64) -> Option<Self> {
+        let ordered = checkpoints.windows(2).all(|w| w[0] <= w[1]);
+        let bounded = checkpoints.last().is_some_and(|&last| last <= newlines);
+        (checkpoints.first() == Some(&0) && ordered && bounded).then_some(Self {
+            checkpoints,
+            newlines,
+        })
+    }
+
+    /// The checkpoints (index cache).
+    pub(crate) fn checkpoints(&self) -> &[u64] {
+        &self.checkpoints
+    }
+
+    /// Total number of `\n` bytes.
+    pub(crate) fn newlines(&self) -> u64 {
+        self.newlines
+    }
+
     /// Number of lines (newlines + 1).
     pub fn line_count(&self) -> u64 {
         self.newlines + 1

@@ -36,7 +36,7 @@ pub enum ContainerKind {
 /// Packing (see docs/DECISIONS.md, ADR 008): `start` uses bit 63 for the kind; `end` keeps
 /// the offset in its low 40 bits and the depth in its high 24 bits.
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Node {
     start_kind: u64,
     end_depth: u64,

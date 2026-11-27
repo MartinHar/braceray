@@ -22,6 +22,11 @@ impl MappedFile {
         // open time, the app checks `Document::has_changed_on_disk` on focus and every few
         // seconds, and long jobs re-check the length before they start. Covered by every
         // `Document::open` test (e.g. `tests/document.rs`).
+        // Index cache entries (`cache/`) are mapped the same way. Braceray never modifies an
+        // entry in place: writers create a new temp file and rename it over the old entry,
+        // and eviction deletes, so an existing mapping keeps its bytes. The entry's
+        // contents are untrusted until `cache::format::read` has checked sizes, alignment
+        // and the checksum (`tests/cache.rs` covers truncated and corrupted entries).
         let map = unsafe { Mmap::map(file)? };
         Ok(Self { map })
     }

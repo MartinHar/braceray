@@ -53,7 +53,7 @@ impl Default for IndexOptions {
 }
 
 impl IndexOptions {
-    fn budget_for(&self, len: u64) -> u64 {
+    pub(crate) fn budget_for(&self, len: u64) -> u64 {
         if self.memory_budget == 0 {
             (len / 4).max(MIN_AUTO_BUDGET)
         } else {

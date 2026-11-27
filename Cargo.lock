@@ -602,6 +602,7 @@ dependencies = [
 name = "braceray-core"
 version = "0.0.0"
 dependencies = [
+ "bytemuck",
  "criterion",
  "gen-fixtures",
  "memchr",
@@ -613,6 +614,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
+ "tracing",
  "xxhash-rust",
 ]
 

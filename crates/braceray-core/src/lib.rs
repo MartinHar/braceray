@@ -2,6 +2,7 @@
 //!
 //! This crate has no UI dependencies and is fully unit-testable.
 
+pub mod cache;
 pub mod document;
 pub mod error;
 pub mod index;

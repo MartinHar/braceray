@@ -8,6 +8,7 @@ mod node;
 mod parser;
 pub mod scalar;
 pub mod simd;
+mod store;
 
 pub use build::{DEFAULT_CHUNK_SIZE, IndexOptions, build_bytes, build_bytes_with, build_index};
 
@@ -15,6 +16,8 @@ use std::fmt;
 
 pub use lines::{LINE_BLOCK, LineTable};
 pub use node::{ContainerKind, MAX_DEPTH, MAX_OFFSET, NO_PARENT, Node, UNKNOWN_COUNT};
+pub(crate) use parser::intern_expected;
+pub(crate) use store::NodeStore;
 
 /// The first error in an invalid document.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,7 +70,7 @@ pub enum Validation {
 /// both produce equal values for the same input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Index {
-    pub(crate) nodes: Vec<Node>,
+    pub(crate) nodes: NodeStore,
     pub(crate) lines: LineTable,
     pub(crate) validation: Validation,
     pub(crate) max_stored_depth: Option<u32>,
@@ -80,7 +83,7 @@ impl Index {
     /// In an invalid document, containers that weren't closed before the error have
     /// `end() == error offset` and `child_count() == UNKNOWN_COUNT`.
     pub fn nodes(&self) -> &[Node] {
-        &self.nodes
+        self.nodes.as_slice()
     }
 
     /// The line table.
@@ -113,9 +116,15 @@ impl Index {
         self.len == 0
     }
 
-    /// Heap bytes used by the index.
+    /// Bytes used by the index: heap, plus the mapped cache file when it was loaded from
+    /// the index cache.
     pub fn memory_bytes(&self) -> usize {
-        self.nodes.capacity() * std::mem::size_of::<Node>() + self.lines.memory_bytes()
+        self.nodes.memory_bytes() + self.lines.memory_bytes()
+    }
+
+    /// `true` if the node table is a zero-copy view of an index cache file.
+    pub fn is_from_cache(&self) -> bool {
+        self.nodes.is_mapped()
     }
 }
 

@@ -11,17 +11,18 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 05 — Index cache |
-| **Status** | ⬜ Not started (step 04 ✅) |
+| **Current step** | 06 — App shell |
+| **Status** | ⬜ Not started (step 05 ✅) |
 | **Current sub-task** | — |
-| **Next action** | Martin reviews step 04; then start step 05 |
-| **Last updated** | 2026-11-25 |
+| **Next action** | Martin reviews step 05 and answers the `directories` / MPL-2.0 question; then start step 06 |
+| **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
 | **CI on `main`** | Run 45650452101 (commit a3a1b0a): Windows ✅ macOS ✅ Linux ✅ deny ✅ |
 
 ## Blockers / questions for Martin
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
+- [ ] 2026-11-27 · Step 05 · `directories` (fixed stack) depends on `option-ext`, which is **MPL-2.0** and not on the license allow-list, so `cargo deny` fails. I replaced it with a std-only lookup of the same cache dir (ADR 014). Not blocking · Decide: allow MPL-2.0 for `option-ext` and use `directories`, or keep the std version (it would also be used for the settings dir in step 06)
 <!-- Format: - [ ] YYYY-MM-DD · Step NN · question or blocker · what you need from me -->
 
 ---
@@ -33,7 +34,7 @@
 | 02 | Test fixture generator | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
 | 03 | File loading (mmap) | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
 | 04 | Structural index & validation | MVP | ✅ | 2026-11-25 | 2026-11-25 | eac9cbd, 1c02d57, 16b7adc, 4d commit |
-| 05 | Index cache | MVP | ⬜ | | | |
+| 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | step 05 commit (see git log) |
 | 06 | App shell | MVP | ⬜ | | | |
 | 07 | Tree view | MVP | ⬜ | | | |
 | 08 | Raw text view | MVP | ⬜ | | | |
@@ -48,7 +49,7 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 4 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 5 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
 
 ### MVP time estimate (made 2026-11-25, after step 01)
 About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
@@ -83,7 +84,7 @@ Fill in with real measurements (details and machine info in `docs/PERF.md`). Mar
 | First visible content (2 GB) | < 1 s | | | 07 | — |
 | Full index, warm (2 GB) | < 5 s | 1.18 s (pretty) / 1.94 s (minified) | M3P | 04 | ✅ |
 | Full index, cold NVMe (2 GB) | < 10 s | ~3.0 s / 3.7 s (page cache partly evicted, not a true reboot-cold) | M3P | 04 | — |
-| Re-open from cache (2 GB) | < 1 s | | | 05 | — |
+| Re-open from cache (2 GB) | < 1 s | 14 ms (pretty, entry 471 MB) / 3.6 ms (minified), warm | M3P | 05 | ✅ |
 | Plain search count, warm (2 GB) | < 1.5 s | | | 09 | — |
 | Case-insensitive search (2 GB) | < 3 s | | | 09 | — |
 | Simple regex (2 GB) | < 5 s | | | 13 | — |
@@ -300,6 +301,44 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 
 - Decisions: ADR 008 (24-byte node), ADR 009 (validation semantics, char columns, partial index), ADR 010 (SSE2 instead of SSE4.2, dispatch, escape mask, Rosetta testing), ADR 011 (parallel builder design), ADR 012 (navigation, oracles, fuzz crate).
 
+### Step 05 — Index cache
+**Status:** ✅ Done · **Started:** 2026-11-27 · **Finished:** 2026-11-27
+
+**Plan**
+- [x] Deps via `cargo add`: `bytemuck` (derive), `tracing`, `serde` + `serde_json` (cache metadata). `directories` was added, then removed: MPL-2.0 dependency (ADR 014, question for Martin)
+- [x] `index/store.rs`: `NodeStore` (owned `Vec<Node>` or zero-copy slice of a mapped cache file); `Node: Pod`
+- [x] `cache/format.rs`: `.brx` header (magic, format/app version, identity, budget, counts, validation, adaptive depth), node + line tables, block-parallel xxh3 checksum; decode with `bytemuck::try_cast_slice`
+- [x] `cache/meta.rs`: `index.json` (key → path, size, last_access), LRU eviction, stale `.tmp` cleanup
+- [x] `cache/mod.rs` + `cache/open.rs`: `IndexCache`, `CacheSettings` (enabled / max bytes / min file bytes), `cache_key` (xxh3-128 of `FileIdentity`), `load`, `store` (tmp + atomic rename), `spawn_store`, `clear` / `clear_index_cache` → bytes freed, `default_dir()`; `load_or_build` + `IndexSource` + `LoadedIndex::status_text`
+- [x] Tests (tempdir cache): hit equals build, stale after append / touch, corruption (truncate, flip bytes) → deleted + rebuilt, old format version, disabled → empty dir, eviction under a tiny limit, concurrent writers/readers, small files skipped, invalid-document round trip
+- [x] 2 GB re-open test (ignored) + criterion bench `cache_100m`
+- [x] Docs: PERF, DECISIONS, CHANGELOG, PROGRESS (THIRD_PARTY_LICENSES unchanged: no new crates, eframe already pulled them in)
+
+**Acceptance criteria** (copied from the step file)
+- [x] Re-open the 2 GB fixture: index ready in **< 1 s** (warm disk). (`document_big::cache_reopen_2g`: `Document::open` + `load_or_build`, first 14.5 ms, best 13.8 ms; minified 3.6 ms)
+- [x] Modifying the source file (append a byte, touch mtime) → the cache is ignored and the index rebuilt. (`modified_source_is_rebuilt`)
+- [x] A corrupted cache file (truncate or flip bytes) → detected, deleted, rebuilt; no crash. (`truncated_entry_is_rebuilt`: 9 truncations/extensions; `flipped_bytes_are_detected`: 15 positions over header, nodes, lines and checksum, plus all-garbage)
+- [x] Cache from an older `format_version` → ignored and rebuilt. (`other_format_or_app_version_is_rebuilt`: versions 0 and 2 and another app version)
+- [x] With the cache disabled, nothing is written to the cache dir. (`disabled_cache_writes_nothing`: the dir isn't even created; existing entries aren't read)
+- [x] Eviction keeps the total under the limit (test with a tiny limit). (`eviction_keeps_total_under_limit`: limit = 2.5 entries, 6 files, LRU order checked; an entry larger than the limit isn't written)
+- [x] Two app instances opening the same file at once don't corrupt the cache (temp + rename). (`concurrent_writers_and_readers_never_see_a_broken_entry`: 6 writers × 10 + 6 readers × 40 on one entry, each with its own `IndexCache`; threads in one process, with unique temp names per pid + counter, the same mechanism as for two processes. No leftover temp files)
+
+**Quality gates (last run)**
+- [x] fmt · [x] clippy (workspace; core lib also for x86_64-pc-windows-msvc) · [x] tests (120 passed, 5 ignored big-file tests that pass with `--ignored`: core 35 unit + 14 cache + 11 document + 10 index_scalar + 10 index_build + 3 nav + 8 doctests; gen-fixtures 14 + 9 + 4 + 1; app 1; cache tests also pass as x86_64 under Rosetta; cache proptest also run with 5,000 cases) · [x] cargo deny · [x] benches (`--quick`: index within noise except `scalar_index`, which is a code-layout artefact of the build path, see PERF.md / I-005). Run 2026-11-27 on M3 Pro.
+
+**What was done**
+- `braceray_core::cache::{IndexCache, CacheSettings, CacheError, StoreOutcome, SkipReason, IndexSource, LoadedIndex, load_or_build, clear_index_cache, cache_key}`; `Index::is_from_cache`.
+- Loading maps the entry and uses its node table without copying. Full block-parallel checksum plus structural checks: 2 GB re-open in 14 ms.
+
+**Known limitations / follow-ups**
+- Windows-specific paths aren't tested yet (a mapped entry can't be replaced or deleted there; the code keeps it and moves on). CI runs no tests (I-001), see I-006.
+- Cold re-open (cache entry not in the page cache) not measured; reading 471 MB from the SSD should still be well under 1 s.
+- Not wired into the app yet: settings UI and status text come in step 06.
+
+**Decisions** (also in docs/DECISIONS.md)
+- 013: cache format, full checksum instead of sampled, zero-copy `NodeStore`, advisory `index.json`.
+- 014: cache dir computed with std instead of `directories` (MPL-2.0 dependency), open question for Martin.
+
 ---
 
 ## Session log
@@ -312,6 +351,12 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-27 · Step 05
+- Did: step 05 index cache end to end (`cache/` module, zero-copy `NodeStore`, tests, 2 GB re-open test, criterion bench). Dropped `directories` (MPL-2.0 dependency, question for Martin). Found that the `scalar_index` bench depends on code layout: the identical source runs at 139 ms or 280 ms depending on the build dir (I-005).
+- Tests: 120 passed, 0 failed, 5 ignored (pass with `--ignored`) · fmt/clippy/deny clean · 2 GB re-open from cache 14 ms
+- Commits: step 05 commit (see git log); not pushed
+- Next: Martin reviews step 05; then step 06 (app shell)
 
 ### 2026-11-25 23:50 · Step 03 / 04
 - Did: pushed step 03; step 04 done in four commits: 4a scalar reference, 4b SIMD classifier, 4c parallel builder, 4d navigation + benches + fuzz. Installed the `x86_64-apple-darwin` target (Rosetta testing), nightly and `cargo-fuzz`.
@@ -348,3 +393,5 @@ Issues found during the build that are not fixed yet.
 | I-002 | 02 | Low | CI doesn't generate the 100 MB fixture set (testing-strategy says it should); add with the test step | 12 | Open |
 | I-003 | 04 | Low | Index build is limited by the sequential token consumer (~0.9 s of the 1.18 s for 2 GB). A per-chunk grammar check + parallel stitch could approach memory bandwidth. Targets are met, so only if later profiling needs it | 12 | Open |
 | I-004 | 04 | Low | x86 speed only measured under Rosetta; measure `fast_index_2g` on a real Windows x64 machine (reference machine B) | 12 | Open |
+| I-005 | 05 | Low | `index_100m/scalar_index` (the reference oracle only) runs at 139–147 ms or 270–300 ms for identical source depending on the build path: code-alignment sensitivity of its byte loop. Production builders are unaffected. Possible fix: `-C llvm-args=-align-loops=64` for benches, or restructure the loop if it ever matters | 12 | Open |
+| I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Open |
