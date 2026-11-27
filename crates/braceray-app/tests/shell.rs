@@ -306,17 +306,40 @@ fn recent_files_open_and_missing_ones_can_be_removed() {
     h.get_by_label("(missing)");
     h.get_by_label("Remove").click();
     h.run_steps(2);
-    assert_eq!(h.state().settings.recent_files, vec![a.clone()]);
+    assert_eq!(h.state().settings.recent_files, vec![canonical(&a)]);
 
     h.get_by_label("a.json").click();
     step_until(&mut h, "open from recent", all_ready);
-    assert_eq!(h.state().tabs[0].path, a);
+    assert_eq!(h.state().tabs[0].path, canonical(&a));
 
     h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::W);
     h.run_steps(2);
     h.get_by_label("Clear recent").click();
     h.run_steps(2);
     assert!(h.state().settings.recent_files.is_empty());
+}
+
+fn canonical(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap()
+}
+
+#[test]
+fn recent_files_store_one_canonical_path_per_file() {
+    let env = Env::new();
+    let a = env.file("a.json", b"{}");
+    std::fs::create_dir(env.dir.path().join("sub")).unwrap();
+    let roundabout = env.dir.path().join("sub/../a.json");
+
+    let mut h = harness(BracerayApp::new(env.config()));
+    h.state_mut().open_path(&roundabout);
+    step_until(&mut h, "open", all_ready);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::W);
+    h.run_steps(2);
+    h.state_mut().open_path(&a);
+    step_until(&mut h, "reopen", all_ready);
+
+    assert_eq!(h.state().settings.recent_files, vec![canonical(&a)]);
+    assert!(h.state().settings.recent_files[0].is_absolute());
 }
 
 #[derive(Debug)]

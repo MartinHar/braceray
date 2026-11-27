@@ -30,3 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Debug builds can be driven by Claude Code through `egui_mcp` (egui inspection protocol on 127.0.0.1:5719).
 - `braceray_core::job::{JobHandle, JobEvent, Repaint}`: background jobs with partial results, progress, cancellation and a repaint callback.
 - Index cache (`braceray_core::cache`), on by default: the second open of a file loads its index from the OS cache dir (2 GB file: 14 ms instead of ~1–3 s). Stale, corrupted or old-format entries are detected, deleted and rebuilt. Entries are written in the background with temp file + atomic rename (safe with several app instances), and least-recently-used entries are evicted beyond 4 GiB. Settings: on/off, max size, minimum file size (20 MiB); `clear_index_cache()`.
+
+### Fixed
+- Recent files store the canonical absolute path, so a file opened as `./a.json` and as `/full/path/a.json` no longer shows up twice, and a relative command-line path keeps working when the app is started from another folder.

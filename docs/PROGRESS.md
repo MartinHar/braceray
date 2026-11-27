@@ -13,8 +13,8 @@
 |---|---|
 | **Current step** | 06 — App shell |
 | **Status** | 🟦 In progress (code complete, gates green) |
-| **Current sub-task** | Manual acceptance checks |
-| **Next action** | Martin: drag/resize during 2 GB indexing, native dialog, System theme, egui_mcp (install + register); then mark step 06 ✅ |
+| **Current sub-task** | Manual acceptance checks (3 left for Martin) |
+| **Next action** | Martin: drag the window during 2 GB indexing, click through Open file… / Cmd+O, switch macOS appearance with Theme = System; then mark step 06 ✅ |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -23,7 +23,7 @@
 ## Blockers / questions for Martin
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
 - [x] 2026-11-27 · Step 05 · `directories` depends on `option-ext` (MPL-2.0, not on the allow-list) · Resolved: Martin chose to keep the std-only folder lookup (ADR 014); no `directories`, no MPL exception
-- [ ] 2026-11-27 · Step 06 · Installing `egui_mcp` was blocked by Claude Code's permission policy · Please run `cargo install egui_mcp` and register it (README → Development), or allow the install, so the egui_mcp criterion can be checked
+- [x] 2026-11-27 · Step 06 · Installing `egui_mcp` was blocked by Claude Code's permission policy · Resolved: Martin installed it (binary `egui-mcp`); driven over stdio JSON-RPC. Register with `claude mcp add egui -- egui-mcp` to get the tools natively
 <!-- Format: - [ ] YYYY-MM-DD · Step NN · question or blocker · what you need from me -->
 
 ---
@@ -353,20 +353,22 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [x] Debug-only inspection plugin (`egui_inspection`, 127.0.0.1:5719), README *Development* section; macOS "Open With" → ADR 017 follow-up (I-007)
 - [x] kittest tests (`tests/shell.rs`, 10): open → indexing → done + cancel + retry, invalid banner, UTF-16 / empty / binary / missing messages, tabs open/switch/dedup/close, theme toggle + persistence, settings round trip + bad values, cache "from cache" + disabled cache writes nothing, recent files (open, missing + Remove, Clear), drag & drop, `?` dialog
 - [x] Manual run of the release app with the 2 GB fixture (progress, speed, ETA, "Indexed …", "from cache"); docs (CHANGELOG, DECISIONS 015–017, PERF, THIRD_PARTY_LICENSES, README)
+- [x] egui_mcp drive-through (open via Recent, status bar, Cancel, resize latency probe)
+- [x] Fix found while driving: recent files stored non-canonical paths (duplicate `orders_2g.json`, relative `fixtures-data/…` entry); now the canonical path + kittest `recent_files_store_one_canonical_path_per_file`; README `egui-mcp` command fixed
 - [ ] Martin: manual checks listed under the acceptance criteria below
 
 **Acceptance criteria** (copied from the step file)
-- [ ] Opening the 2 GB fixture: the window stays responsive the whole time (drag the window and resize during indexing, no stutter); progress updates smoothly; Cancel works. — *Verified: release app shows live progress (87 %, 1.45 GB/s, ETA) and repaints every 50 ms; the build runs on a worker. Cancel verified in kittest. Not verified: dragging / resizing during indexing (needs a human hand); please check.*
+- [ ] Opening the 2 GB fixture: the window stays responsive the whole time (drag the window and resize during indexing, no stutter); progress updates smoothly; Cancel works. — *Verified via egui-mcp: resize round trips during a 2 GB build (opt-level 3 build with the inspection plugin) median 2.7 ms, p95 13.8 ms over 896 resizes (idle baseline 16.6 ms median); progress label advanced smoothly 4 % → 100 %; Cancel clicked through the UI → "Indexing cancelled", memory back to 78 MB; closing a ready 2 GB tab ≈ 15 ms. One 1.0 s outlier in the first run, not reproduced in two more runs (likely window start-up). Unoptimized debug build: 94 ms median while the debug builder saturates all cores, expected. Not verified: a physical window drag; please check.*
 - [ ] Drag & drop, dialog, CLI arg and recent files all open files. — *CLI verified in the real app; drag & drop (injected drop event) and recent files in kittest. The native dialog was not clicked through; please check Open file… / Cmd+O.*
 - [x] Opening a second file opens a tab; switching tabs is instant. (`tabs_open_switch_dedup_and_close`; switching only changes an index, no work)
 - [x] Invalid JSON shows the banner with line/column; UTF-16 and empty files show their friendly messages. (`invalid_json_shows_banner_with_position`, `friendly_messages_for_unreadable_files`)
 - [ ] Theme switch is instant and persisted; "System" follows the OS. — *Instant + persisted verified (`theme_switch_is_instant_and_persisted`). "System" uses egui's `ThemePreference::System` (OS theme from winit); not checked by switching the macOS appearance.*
 - [x] Settings persist across restarts; the cache toggle really disables cache writes. (`settings_round_trip_through_the_window`, `reopen_shows_from_cache_and_disabled_cache_writes_nothing`)
 - [x] Reopening a cached file shows "from cache" in the status bar. (kittest + release app: "Index: from cache (0.04 s)" for the 2 GB fixture)
-- [ ] Debug build can be driven via egui_mcp (Claude Code: open a fixture through the UI and read the status bar). — *Inspection server verified listening on 127.0.0.1:5719 in the debug build. Installing `egui_mcp` (`cargo install egui_mcp`) was blocked by the session's permission policy, so it wasn't driven end to end. Needs Martin to install + register it (README → Development).*
+- [x] Debug build can be driven via egui_mcp (Claude Code: open a fixture through the UI and read the status bar). — *Driven with `egui-mcp` over stdio: attach → click `orders_16k.json` in Recent files → `wait_for "Indexed"` → status bar read: "16.8 KB · Index: built (0.00 s) · Memory 113 MB". Also clicked Settings, Cancel, Cmd+W, resize.*
 
 **Quality gates (last run)**
-- [x] fmt · [x] clippy (workspace, all targets) · [x] tests (144 passed, 0 failed, 5 ignored big-file tests; app: 8 unit + 10 shell + 1 window; core +5 job unit tests + 1 doctest) · [x] cargo deny. Benches not needed (no index/search change). Windows cross-clippy of the app can't run on macOS (mimalloc's C build needs MSVC); CI covers it. Run 2026-11-27 on M3 Pro.
+- [x] fmt · [x] clippy (workspace, all targets) · [x] tests (145 passed, 0 failed, 5 ignored big-file tests; app: 8 unit + 11 shell + 1 window; core +5 job unit tests + 1 doctest) · [x] cargo deny. Benches not needed (no index/search change). Windows cross-clippy of the app can't run on macOS (mimalloc's C build needs MSVC); CI covers it. Run 2026-11-27 (second session) on M3 Pro.
 
 **What was done**
 - Core: `braceray_core::job::{JobHandle, JobEvent, JobContext, Repaint, no_repaint}`, `Error::{Thread, JobPanicked}`.
@@ -377,6 +379,8 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - macOS "Open With" / double-click doesn't open the file yet (ADR 017, I-007).
 - Status-bar memory is the resident set, which includes mapped file pages (I-008).
 - The tree area shows a placeholder until step 07; line:col appears once the tree sets a selection.
+- Existing stale recent entries (relative paths written before the fix) stay until removed; no migration (no release yet).
+- Escape doesn't close the Settings window (not in the spec; could be added with step 11/12 polish).
 - `index_progress` speed counts both passes of the build as file bytes (progress is 0 → 2 × length), which is what the user cares about.
 
 **Decisions** (also in docs/DECISIONS.md)
@@ -396,6 +400,12 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-27 (2) · Step 06
+- Did: drove the debug app with `egui-mcp` (Martin installed it) over stdio JSON-RPC: opened a fixture via Recent files and read the status bar (egui_mcp criterion ✅); resize-latency probe during 2 GB indexing (median 2.7 ms / p95 13.8 ms optimized); Cancel through the UI. Fixed recent files storing non-canonical paths (duplicates); README `egui-mcp` command.
+- Tests: 145 passed, 0 failed, 5 ignored · fmt/clippy/deny clean
+- Commits: `fix: store canonical paths in recent files` (see git log); not pushed
+- Next: Martin: window drag during indexing, native dialog, System theme; then mark 06 ✅ and start step 07
 
 ### 2026-11-27 · Step 06
 - Did: step 06 app shell: core job plumbing (`JobHandle<P, T>`), settings + recent files, theme, tabs, open by dialog / drag & drop / CLI / recent, indexing progress with Cancel, error banner, status bar, settings window, shortcuts dialog, change watcher, debug inspection server. 10 kittest tests. Release app checked with the 2 GB fixture (3.2 s build in the app, 0.04 s from cache).

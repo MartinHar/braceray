@@ -54,8 +54,8 @@ an MCP client can read the widget tree, click, type and take screenshots. Releas
 include this.
 
 ```sh
-cargo install egui_mcp           # MCP server for the egui_inspection protocol (MIT OR Apache-2.0)
-claude mcp add egui egui_mcp     # register it with Claude Code (check `egui_mcp --help` for the exact command)
+cargo install egui_mcp              # MCP server for the egui_inspection protocol (MIT OR Apache-2.0)
+claude mcp add egui -- egui-mcp     # register it with Claude Code (the binary is `egui-mcp`, with a hyphen)
 cargo run -p braceray-app -- path/to/file.json
 ```
 

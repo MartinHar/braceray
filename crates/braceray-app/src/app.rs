@@ -292,7 +292,9 @@ impl BracerayApp {
         self.next_id += 1;
         self.tabs.push(tab);
         self.active = self.tabs.len() - 1;
-        self.settings.push_recent(path);
+        // The canonical path, so `./a.json` and `/abs/a.json` share one entry and a
+        // relative command-line path still works when the app starts elsewhere.
+        self.settings.push_recent(&key);
         self.store.save(&self.settings);
         self.refresh_recent();
     }
