@@ -4,13 +4,17 @@
 use braceray_core::job::Repaint;
 use eframe::egui::{self, RichText};
 
-use super::{Action, banner, tree};
+use super::{Action, banner, raw, tree};
 use crate::format;
+use crate::panes::Pane;
 use crate::tab::{OpenDocument, TabState};
 use crate::theme;
 
 /// Label of the cancel button while indexing.
 pub const CANCEL: &str = "Cancel";
+
+/// How long a raw view notice (e.g. the copy limit) stays.
+const NOTICE: std::time::Duration = std::time::Duration::from_secs(4);
 
 /// Prefix of the preview strip text ("Preview: indexing… 37 %").
 pub const PREVIEW_LABEL: &str = "Preview: indexing…";
@@ -47,12 +51,57 @@ pub fn show(
                     }
                 });
             }
-            let cx = tree::TreeContext {
-                tab_id,
-                repaint,
-                rows_drawn: &mut rows_drawn,
-            };
-            tree::show(ui, view, cx, actions);
+            let focus = tab.panes.focus;
+            let full_width = ui.available_width();
+            let tree_panel = egui::Panel::left(("tree_pane", tab_id))
+                .resizable(true)
+                .default_size((full_width * 0.45).max(260.0))
+                .size_range(200.0..=(full_width - 200.0).max(200.0))
+                .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+                    right: 6,
+                    ..egui::Margin::ZERO
+                }))
+                .show(ui, |ui| {
+                    let cx = tree::TreeContext {
+                        tab_id,
+                        repaint,
+                        rows_drawn: &mut rows_drawn,
+                        keys: focus == Pane::Tree,
+                    };
+                    tree::show(ui, view, cx, actions);
+                });
+            let pressed =
+                ui.input(|i| i.pointer.primary_pressed() || i.pointer.secondary_pressed());
+            if pressed && ui.rect_contains_pointer(tree_panel.response.rect) {
+                tab.panes.focus = Pane::Tree;
+            }
+            if let Some(raw_view) = tab.panes.raw.as_mut() {
+                let cx = raw::RawContext {
+                    tab_id,
+                    repaint,
+                    focused: focus == Pane::Raw,
+                };
+                let out = raw::show(ui, raw_view, view, cx);
+                rows_drawn += out.rows_drawn;
+                if out.focus {
+                    tab.panes.focus = Pane::Raw;
+                }
+                if out.go_to {
+                    actions.push(Action::GoTo);
+                }
+                if out.copy {
+                    match raw_view.copy_text(view.nav().bytes()) {
+                        Some(Ok(text)) => actions.push(Action::Copy(text)),
+                        Some(Err(message)) => {
+                            raw_view.notice = Some((message, std::time::Instant::now() + NOTICE));
+                        }
+                        None => {}
+                    }
+                }
+                if let Some(off) = out.clicked {
+                    tab.panes.locate(view, off, repaint);
+                }
+            }
             if rows_drawn > 0 && tab.first_rows.is_none() {
                 let took = tab.opened.elapsed();
                 tracing::info!("{}: first tree rows {took:?} after opening", tab.name);

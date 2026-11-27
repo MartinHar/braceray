@@ -107,8 +107,8 @@ impl LineTable {
     /// use braceray_core::index::LineTable;
     /// let bytes = "ab\nçd".as_bytes();
     /// let t = LineTable::build(bytes);
-    /// let p = t.position(bytes, 5, 1 << 20);
-    /// assert_eq!((p.line, p.column, p.column_in_bytes), (2, 3, false));
+    /// let p = t.position(bytes, 5, 1 << 20); // the `d`
+    /// assert_eq!((p.line, p.column, p.column_in_bytes), (2, 2, false));
     /// let p = t.position(bytes, 5, 1);
     /// assert_eq!((p.line, p.column, p.column_in_bytes), (2, 3, true)); // "ç" is 2 bytes
     /// ```

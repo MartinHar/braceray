@@ -6,8 +6,9 @@ use braceray_core::job::JobHandle;
 use eframe::egui;
 
 use super::BracerayApp;
-use crate::ui::Action;
+use crate::ui::goto::GoToDialog;
 use crate::ui::settings_window::CacheInfo;
+use crate::ui::{self, Action};
 
 impl BracerayApp {
     pub(super) fn apply(&mut self, ctx: &egui::Context, action: Action) {
@@ -89,7 +90,58 @@ impl BracerayApp {
                 }
             }
             Action::ToggleShortcuts => self.show_shortcuts = !self.show_shortcuts,
+            Action::GoTo => {
+                if self.active_tab().is_some_and(|t| t.tree.is_some()) {
+                    self.goto.get_or_insert_with(GoToDialog::default);
+                }
+            }
+            Action::ShowInRaw => {
+                let repaint = self.repaint();
+                if let Some(tab) = self.tabs.get_mut(self.active)
+                    && let Some(tree) = &tab.tree
+                {
+                    tab.panes.show_selection(tree, &repaint);
+                }
+            }
             Action::Focus(_) | Action::Close(_) => {}
+        }
+    }
+
+    /// Draws the Go to dialog, starts requests and applies finished ones.
+    pub(super) fn goto_frame(&mut self, ctx: &egui::Context) {
+        let Some(dialog) = self.goto.as_mut() else {
+            return;
+        };
+        let repaint = self
+            .repaint
+            .clone()
+            .unwrap_or_else(braceray_core::job::no_repaint);
+        let out = ui::goto::show(ctx, dialog);
+        if out.close {
+            self.goto = None;
+            return;
+        }
+        let Some(tab) = self.tabs.get_mut(self.active) else {
+            self.goto = None;
+            return;
+        };
+        if out.submit
+            && let Some(tree) = &tab.tree
+        {
+            dialog.submit(tab.id, tree, &repaint);
+        }
+        if let Some(hit) = dialog.poll()
+            && dialog.tab_id == Some(tab.id)
+            && let Some(tree) = tab.tree.as_mut()
+        {
+            if let Some(raw) = tab.panes.raw.as_mut() {
+                raw.reveal(tree, hit.span, &repaint);
+            }
+            tab.panes.reveal_in_tree(tree, hit.address, &repaint);
+            tab.panes.focus = crate::panes::Pane::Raw;
+            self.goto = None;
+        } else if dialog.is_busy() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(30));
         }
     }
 

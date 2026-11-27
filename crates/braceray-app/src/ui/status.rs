@@ -1,10 +1,12 @@
 //! Bottom bar: file size · index state · line:col · memory.
 
-use braceray_core::nav::Navigator;
 use eframe::egui::{self, RichText};
 
 use crate::format;
 use crate::tab::{OpenDocument, TabState};
+
+/// Bytes scanned at most to count the column in characters.
+const COLUMN_SCAN: usize = 1 << 20;
 
 /// Draws the status bar for `tab` (or the empty window). `memory` is the process's
 /// resident memory, refreshed by the app every 2 s.
@@ -57,11 +59,14 @@ pub fn parts(tab: &OpenDocument) -> Vec<String> {
                 out.push("Invalid JSON".to_owned());
             }
             if let Some(off) = tab.selection {
-                let (line, col) = Navigator::new(doc.bytes(), &loaded.index).line_col(off);
+                // Counting characters back to the line start is bounded: on a 2 GB
+                // single-line file the column is given in bytes instead.
+                let p = loaded.index.lines().position(doc.bytes(), off, COLUMN_SCAN);
+                let col = if p.column_in_bytes { "Byte" } else { "Col" };
                 out.push(format!(
-                    "Ln {}, Col {}",
-                    format::group_digits(line),
-                    format::group_digits(col)
+                    "Ln {}, {col} {}",
+                    format::group_digits(p.line),
+                    format::group_digits(p.column)
                 ));
             }
         }

@@ -2,6 +2,8 @@
 
 mod app;
 pub mod format;
+pub mod panes;
+pub mod raw_view;
 pub mod settings;
 pub mod tab;
 pub mod theme;

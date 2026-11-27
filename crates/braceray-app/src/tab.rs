@@ -12,6 +12,7 @@ use braceray_core::tree::preview::{PREVIEW_BYTES, Preview};
 use braceray_core::{Document, Error, Validation};
 
 use crate::format;
+use crate::panes::Panes;
 use crate::tree_view::{Source, TreeView};
 
 /// How often the file is checked for changes on disk.
@@ -124,6 +125,8 @@ pub struct OpenDocument {
     pub selection: Option<u64>,
     /// The tree (over the preview while indexing, then over the full index).
     pub tree: Option<TreeView>,
+    /// The raw view and its link to the tree.
+    pub panes: Panes,
     /// When the file was opened (or reloaded).
     pub opened: Instant,
     /// Time from opening to the first frame with tree rows.
@@ -153,6 +156,7 @@ impl OpenDocument {
             browse_invalid: false,
             selection: None,
             tree: None,
+            panes: Panes::default(),
             opened: Instant::now(),
             first_rows: None,
             group_size: env.group_size,
@@ -173,6 +177,7 @@ impl OpenDocument {
         self.browse_invalid = false;
         self.selection = None;
         self.tree = None;
+        self.panes = Panes::default();
         self.opened = Instant::now();
         self.first_rows = None;
         self.preview_job = None;
@@ -219,6 +224,7 @@ impl OpenDocument {
         self.poll_preview(repaint);
         if let Some(tree) = &mut self.tree {
             tree.poll(repaint);
+            self.panes.update(tree, repaint);
             self.selection = tree.selected_spans().map(|(_, value)| value.start);
         }
         if let Some(changed) = self.change_check.as_mut().and_then(|j| j.try_recv()) {
@@ -324,6 +330,7 @@ impl OpenDocument {
             }
             JobEvent::Failed(e) => {
                 self.tree = None;
+                self.panes = Panes::default();
                 self.state = TabState::Failed {
                     message: e.to_string(),
                     details: error_details(&self.path, &e),
@@ -331,6 +338,7 @@ impl OpenDocument {
             }
             JobEvent::Cancelled => {
                 self.tree = None;
+                self.panes = Panes::default();
                 self.state = TabState::Cancelled;
             }
         }

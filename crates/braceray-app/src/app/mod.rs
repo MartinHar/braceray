@@ -15,6 +15,7 @@ use crate::theme;
 
 mod actions;
 use crate::ui::debug_overlay::{self, FrameStats};
+use crate::ui::goto::GoToDialog;
 use crate::ui::settings_window::CacheInfo;
 use crate::ui::{self, Action};
 
@@ -67,6 +68,8 @@ pub struct BracerayApp {
     pub show_settings: bool,
     /// The keyboard shortcuts dialog is open.
     pub show_shortcuts: bool,
+    /// The Go to dialog, when open.
+    pub goto: Option<GoToDialog>,
     cache_info: CacheInfo,
     cache_job: Option<JobHandle<(), u64>>,
     missing_recent: HashSet<PathBuf>,
@@ -114,6 +117,7 @@ impl BracerayApp {
             dialog: None,
             show_settings: false,
             show_shortcuts: false,
+            goto: None,
             cache_info: CacheInfo::Unavailable,
             cache_job: None,
             missing_recent: HashSet::new(),
@@ -217,6 +221,7 @@ impl BracerayApp {
         let mut open = self.show_shortcuts;
         ui::shortcuts::show(&ctx, &mut open);
         self.show_shortcuts = open;
+        self.goto_frame(&ctx);
 
         self.keyboard(&ctx, &mut actions);
         self.drag_and_drop(&ctx, &mut actions);
@@ -402,6 +407,7 @@ impl BracerayApp {
     fn keyboard(&mut self, ctx: &egui::Context, actions: &mut Vec<Action>) {
         let open = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
         let close = KeyboardShortcut::new(Modifiers::COMMAND, Key::W);
+        let goto = KeyboardShortcut::new(Modifiers::COMMAND, Key::L);
         let debug = [
             KeyboardShortcut::new(Modifiers::CTRL | Modifiers::SHIFT, Key::D),
             KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::D),
@@ -415,6 +421,9 @@ impl BracerayApp {
             }
             if i.consume_shortcut(&close) && !self.tabs.is_empty() {
                 actions.push(Action::Close(self.active));
+            }
+            if i.consume_shortcut(&goto) {
+                actions.push(Action::GoTo);
             }
         });
         let typing = ctx.egui_wants_keyboard_input();

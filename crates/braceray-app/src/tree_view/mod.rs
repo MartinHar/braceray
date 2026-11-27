@@ -1,6 +1,7 @@
 //! State of one tab's tree: the row model over the preview or the full index, the
 //! selection, scrolling, and the background jobs that prepare big containers.
 
+use std::cell::RefCell;
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -8,8 +9,12 @@ use std::time::{Duration, Instant};
 use braceray_core::job::{JobEvent, JobHandle, Repaint};
 use braceray_core::nav::{Container, NavCache, Navigator, Span};
 use braceray_core::tree::preview::Preview;
-use braceray_core::tree::{Expand, Row, RowItem, Rows, TreeModel};
+use braceray_core::tree::{Expand, Reveal, Row, RowItem, Rows, TreeModel};
 use braceray_core::{Document, Index};
+
+mod keys;
+
+pub use keys::TreeKey;
 
 /// Rows that `*` and "Expand all below" add before asking to continue.
 pub const EXPAND_ALL_BUDGET: u64 = 10_000;
@@ -27,10 +32,11 @@ pub enum Source {
 }
 
 /// Runs after a container is prepared, if nothing changed meanwhile.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Then {
     Expand(u64),
     ExpandAll { row: u64, levels: u32, budget: u64 },
+    Reveal(Vec<u64>),
 }
 
 /// An "expand all" that stopped at the row budget and waits for the user.
@@ -77,7 +83,12 @@ pub struct TreeView {
     /// Bumped whenever rows may read differently (model change, prepared container).
     generation: u64,
     rows_cache: Option<(Range<u64>, u64, Rows)>,
+    source_generation: u64,
+    /// (selected row, generation, its spans).
+    selected_cache: RefCell<Option<SelectedSpans>>,
 }
+
+type SelectedSpans = (u64, u64, Option<(Option<Span>, Span)>);
 
 impl std::fmt::Debug for TreeView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -90,7 +101,7 @@ impl std::fmt::Debug for TreeView {
 }
 
 /// A navigator over `source` (a free function so callers can borrow other fields mutably).
-fn navigator<'a>(doc: &'a Document, source: &'a Source, cache: &'a NavCache) -> Navigator<'a> {
+pub fn navigator<'a>(doc: &'a Document, source: &'a Source, cache: &'a NavCache) -> Navigator<'a> {
     match source {
         Source::Preview(p) => p.navigator(doc.bytes(), cache),
         Source::Full(index) => Navigator::with_cache(doc.bytes(), index, cache),
@@ -117,6 +128,8 @@ impl TreeView {
             version: 0,
             generation: 0,
             rows_cache: None,
+            source_generation: 0,
+            selected_cache: RefCell::new(None),
         };
         if view.model.row_count() > 0 {
             view.selected = Some(0);
@@ -140,6 +153,20 @@ impl TreeView {
     /// A navigator over the current source.
     pub fn nav(&self) -> Navigator<'_> {
         navigator(&self.doc, &self.source, &self.cache)
+    }
+
+    /// What a worker needs to build its own navigator (see [`navigator`]).
+    pub fn shared(&self) -> (Arc<Document>, Source, Arc<NavCache>) {
+        (
+            Arc::clone(&self.doc),
+            self.source.clone(),
+            Arc::clone(&self.cache),
+        )
+    }
+
+    /// Bumped whenever the tree switches to another source (preview → full index).
+    pub fn source_generation(&self) -> u64 {
+        self.source_generation
     }
 
     /// The document.
@@ -192,6 +219,7 @@ impl TreeView {
         if !matches!((&self.source, &source), (Source::Full(a), Source::Full(b)) if Arc::ptr_eq(a, b))
         {
             self.cache = Arc::new(NavCache::default());
+            self.source_generation += 1;
         }
         self.source = source;
         self.jobs.clear(); // dropping a handle cancels its job
@@ -250,18 +278,21 @@ impl TreeView {
         }
         self.timings.prepare = prepared.or(self.timings.prepare);
         self.invalidate_rows();
-        if let Some((start, version, then)) = self.then
-            && done.contains(&start)
+        if let Some((start, version, _)) = &self.then
+            && done.contains(start)
         {
-            self.then = None;
+            let version = *version;
+            let then = self.then.take().map(|(_, _, t)| t);
             if version == self.version {
                 match then {
-                    Then::Expand(row) => self.expand(row, repaint),
-                    Then::ExpandAll {
+                    Some(Then::Expand(row)) => self.expand(row, repaint),
+                    Some(Then::ExpandAll {
                         row,
                         levels,
                         budget,
-                    } => self.expand_all_with(row, levels, budget, repaint),
+                    }) => self.expand_all_with(row, levels, budget, repaint),
+                    Some(Then::Reveal(address)) => self.reveal_address(address, repaint),
+                    None => {}
                 }
             }
         }
@@ -387,6 +418,28 @@ impl TreeView {
         }
     }
 
+    /// Expands what is needed to show the value at `address` (child indices from the
+    /// top-level value), selects it and scrolls to it; waits for prepare jobs on the way.
+    pub fn reveal_address(&mut self, address: Vec<u64>, repaint: &Repaint) {
+        let nav = navigator(&self.doc, &self.source, &self.cache);
+        let before = self.model.row_count();
+        let selected = self.selected.and_then(|s| self.model.address(s));
+        let result = self.model.reveal(&nav, &address);
+        if self.model.row_count() != before {
+            // Rows were inserted: find the old selection again (it may have moved).
+            self.selected = selected.and_then(|a| self.model.reveal(&nav, &a).ok());
+            self.changed();
+        }
+        match result {
+            Ok(row) => self.select(row),
+            Err(Reveal::Pending(c)) => {
+                self.then = Some((c.start, self.version, Then::Reveal(address)));
+                self.request_prepare(c, repaint);
+            }
+            Err(Reveal::NotFound) => {}
+        }
+    }
+
     /// Rows inserted below `row` move a selection that is below it.
     fn shift_selection(&mut self, row: u64, added: i64) {
         if let Some(s) = self.selected
@@ -408,48 +461,18 @@ impl TreeView {
         self.scroll_to = Some(row);
     }
 
-    /// Handles a navigation key; `page` = rows per page. Returns `true` if it was used.
-    pub fn key(&mut self, key: TreeKey, page: u64, repaint: &Repaint) -> bool {
-        let count = self.model.row_count();
-        if count == 0 {
-            return false;
-        }
-        let Some(sel) = self.selected else {
-            self.select(0);
-            return true;
-        };
-        match key {
-            TreeKey::Up => self.select(sel.saturating_sub(1)),
-            TreeKey::Down => self.select(sel + 1),
-            TreeKey::Home => self.select(0),
-            TreeKey::End => self.select(count - 1),
-            TreeKey::PageUp => self.select(sel.saturating_sub(page.max(1))),
-            TreeKey::PageDown => self.select(sel + page.max(1)),
-            TreeKey::Right => {
-                if self.model.is_expanded(sel) {
-                    self.select(sel + 1);
-                } else {
-                    self.expand(sel, repaint);
-                    self.scroll_to = Some(sel);
-                }
-            }
-            TreeKey::Left => {
-                if self.model.is_expanded(sel) {
-                    self.collapse(sel);
-                } else if let Some(p) = self.model.parent(sel) {
-                    self.select(p);
-                }
-                self.scroll_to = self.selected;
-            }
-            TreeKey::Toggle => self.toggle(sel, repaint),
-            TreeKey::ExpandChildren => self.expand_all(sel, 2, repaint),
-        }
-        true
-    }
-
-    /// Key and value spans of the selected value (group rows: their container).
+    /// Key and value spans of the selected value (group rows: their container). Cached
+    /// per selected row and model generation: reading a row finds its value's end, which
+    /// for a 200 MB string is a 200 MB scan, and callers ask every frame.
     pub fn selected_spans(&self) -> Option<(Option<Span>, Span)> {
-        match self.row(self.selected?)?.item {
+        let row = self.selected?;
+        if let Some((r, g, spans)) = *self.selected_cache.borrow()
+            && r == row
+            && g == self.generation
+        {
+            return spans;
+        }
+        let spans = match self.row(row)?.item {
             RowItem::Value(v) => Some((v.child.key, v.child.value)),
             RowItem::Group { container, .. } | RowItem::Loading { container, .. } => Some((
                 None,
@@ -458,31 +481,8 @@ impl TreeView {
                     end: container.end + 1,
                 },
             )),
-        }
+        };
+        *self.selected_cache.borrow_mut() = Some((row, self.generation, spans));
+        spans
     }
-}
-
-/// Keys the tree reacts to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TreeKey {
-    /// ↑
-    Up,
-    /// ↓
-    Down,
-    /// → expand, or go to the first child
-    Right,
-    /// ← collapse, or go to the parent
-    Left,
-    /// Home
-    Home,
-    /// End
-    End,
-    /// PageUp
-    PageUp,
-    /// PageDown
-    PageDown,
-    /// Enter
-    Toggle,
-    /// `*`
-    ExpandChildren,
 }

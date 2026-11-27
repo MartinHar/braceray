@@ -44,7 +44,16 @@ fn harness(app: BracerayApp) -> Harness<'static, BracerayApp> {
         .with_size(egui::vec2(1000.0, 700.0))
         // Real frame pacing, so two clicks can be a double click (0.3 s window).
         .with_step_dt(1.0 / 60.0)
-        .build_ui_state(|ui, app: &mut BracerayApp| app.show(ui), app)
+        .build_ui_state(
+            |ui, app: &mut BracerayApp| {
+                // Tests have no system fonts; fixtures hold CJK text the real app draws
+                // with the OS fallback fonts.
+                ui.ctx()
+                    .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                app.show(ui)
+            },
+            app,
+        )
 }
 
 fn step_until(h: &mut Harness<'_, BracerayApp>, what: &str, done: impl Fn(&BracerayApp) -> bool) {
@@ -259,12 +268,12 @@ fn context_menu_copies_and_expands() {
     assert_eq!(copied(&h), ["\"Ann\""]);
     h.run_steps(2);
 
-    // The hooks for later steps are there but disabled.
+    // "Copy path" waits for step 11; "Show in raw view" works since step 08.
     h.get_by_label("tags : [2]").click_secondary();
     h.run_steps(2);
     assert!(h.get_by_label("Copy path").accesskit_node().is_disabled());
     assert!(
-        h.get_by_label("Show in raw view")
+        !h.get_by_label("Show in raw view")
             .accesskit_node()
             .is_disabled()
     );

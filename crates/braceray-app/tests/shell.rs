@@ -68,7 +68,16 @@ impl Env {
 fn harness(app: BracerayApp) -> Harness<'static, BracerayApp> {
     Harness::builder()
         .with_size(egui::vec2(1200.0, 800.0))
-        .build_ui_state(|ui, app: &mut BracerayApp| app.show(ui), app)
+        .build_ui_state(
+            |ui, app: &mut BracerayApp| {
+                // Tests have no system fonts; fixtures hold CJK text the real app draws
+                // with the OS fallback fonts.
+                ui.ctx()
+                    .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+                app.show(ui)
+            },
+            app,
+        )
 }
 
 /// Steps the UI until `done` holds (jobs run on real threads), failing after 20 s.

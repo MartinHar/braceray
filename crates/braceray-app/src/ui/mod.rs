@@ -5,6 +5,9 @@ pub mod banner;
 pub mod body;
 pub mod debug_overlay;
 pub mod empty;
+pub mod goto;
+pub mod raw;
+mod raw_input;
 pub mod settings_window;
 pub mod shortcuts;
 pub mod status;
@@ -49,6 +52,10 @@ pub enum Action {
     ToggleSettings,
     /// Open or close the keyboard shortcuts dialog.
     ToggleShortcuts,
+    /// Open the Go to dialog.
+    GoTo,
+    /// Scroll the raw view to the tree selection.
+    ShowInRaw,
 }
 
 /// Sets the accessible name of an icon-only widget (screen readers, kittest, egui_mcp).

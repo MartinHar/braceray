@@ -25,6 +25,8 @@ const SCROLLBAR: f32 = 12.0;
 pub const COPY_LIMIT: u64 = 16 << 20;
 /// Accessible name of the scrollbar.
 pub const SCROLLBAR_LABEL: &str = "Tree scrollbar";
+/// Context menu item that scrolls the raw view to the row.
+pub const SHOW_IN_RAW: &str = "Show in raw view";
 
 /// What the tree area needs besides the tree itself.
 pub struct TreeContext<'a> {
@@ -34,6 +36,8 @@ pub struct TreeContext<'a> {
     pub repaint: &'a Repaint,
     /// Rows drawn this frame (debug overlay).
     pub rows_drawn: &'a mut usize,
+    /// The tree has the keyboard focus.
+    pub keys: bool,
 }
 
 /// Draws the tree into the remaining space of `ui`.
@@ -66,7 +70,7 @@ pub fn show(
 
     // Keyboard (only when nothing else wants it).
     let ctx = ui.ctx().clone();
-    if !ctx.egui_wants_keyboard_input() && !egui::Popup::is_any_open(&ctx) {
+    if cx.keys && !ctx.egui_wants_keyboard_input() && !egui::Popup::is_any_open(&ctx) {
         keyboard(&ctx, tree, full_rows, cx.repaint);
     }
 
@@ -363,6 +367,8 @@ fn context_menu(
     }
     ui.add_enabled(false, egui::Button::new("Copy path"))
         .on_disabled_hover_text("JSONPath / jq / JavaScript paths arrive with the breadcrumb bar.");
-    ui.add_enabled(false, egui::Button::new("Show in raw view"))
-        .on_disabled_hover_text("Arrives with the raw view.");
+    if ui.button(SHOW_IN_RAW).clicked() {
+        actions.push(Action::ShowInRaw);
+        ui.close();
+    }
 }

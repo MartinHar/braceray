@@ -35,13 +35,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Huge arrays and objects are grouped: `[0 … 999]`, `[1,000 … 1,999]`, … (nested above 1,000,000 children; group size in Settings). Expanding a 2.45 M-element root is instant; opening a group deep inside it reads children in the background ("loading…").
 - Preview while indexing: the tree of the first 4 MB appears within ~150 ms of opening a 2 GB file ("Preview: indexing… 37 %"), then switches to the full index keeping what was expanded and selected.
 - Tree keyboard: ↑/↓, ← (collapse or go to parent), → (expand or go to first child), Home/End, PageUp/PageDown, Enter (toggle), `*` (expand the selection and its children, asks before adding more than 10,000 rows). Click selects, the triangle or a double click toggles.
-- Tree context menu: Expand / Collapse, Expand all below (asks every 10,000 rows), Copy key, Copy value (up to 16 MB); "Copy path" and "Show in raw view" are shown disabled until their steps.
+- Tree context menu: Expand / Collapse, Expand all below (asks every 10,000 rows), Copy key, Copy value (up to 16 MB); "Copy path" is shown disabled until its step.
 - Debug overlay (`Ctrl+Shift+D`): frame times (p50 / p99 / max), rows drawn, time to first rows, tree size.
 - `braceray_core::tree` (row model, preview index) and `nav::NavCache` (navigation cache shared with background jobs, non-blocking `children_if_ready` / `child_count_if_ready`, cancellable `prepare`).
+- Raw text view next to the tree (resizable split): syntax-highlighted, virtualized, scrolls smoothly through any file (2 GB single-line file: frames under 16 ms while dragging the scrollbar end to end).
+  - **Pretty** mode formats minified files on the fly, only for the rows on screen; it is the default when lines are longer than 2,000 bytes on average. The gutter shows each row's byte offset (hover: line and column).
+  - **Original** mode shows the file's own lines with line numbers; lines over 400 bytes wrap (↩).
+  - The scrollbar maps to byte offsets: dragging it to 63 % shows the row at 63 % of the file at once, in either mode. Wheel, ↑/↓, PageUp/PageDown, Home/End scroll it when it has the focus.
+  - A 200 MB string scrolls row by row in both directions without reading the rest of it.
+- Tree ↔ raw sync: selecting a tree row scrolls the raw view to it and highlights it briefly; clicking in the raw view selects the innermost value there in the tree, opening groups and parents as needed (any depth). Tree context menu "Show in raw view".
+- Text selection in the raw view (drag, Shift+click) and Ctrl/Cmd+C copy the exact source bytes (up to 50 MB; larger selections show a message).
+- Go to (Ctrl/Cmd+L or the raw view's "Go to…" button): a line (`12345`), `line:col`, a byte offset (`@88120551`, `@200m`, `@1.5g`) or a simple path (`$.items[3].id`, `$["a b"][0]`); clear messages for lines, offsets or keys that don't exist.
+- `braceray_core::pretty` (on-the-fly pretty printer: rows from any position, anchors from the index, budgeted and resumable seeking, rows backwards; original-mode rows; highlight lexer), `braceray_core::goto`, `Navigator::address_of`, `LineTable::{line_start, line_offset, position}`. Fuzz target `pretty_range`, criterion bench `pretty`.
 
 ### Changed
 - Reading children of huge containers is ~2.7× faster (galloping node lookup), and repeated reads near the last position no longer re-parse from the previous checkpoint.
 - The "Indexed 2.15 GB in 3.2 s · N nodes" summary moved from the content area (now the tree) to the hover text of the status bar's index part.
 
 ### Fixed
+- The status bar's line:col no longer scans back to the start of the line every frame: on a 2 GB single-line file it shows the column in bytes ("Ln 1, Byte 1,158,735,112") past the first 1 MB of a line.
+- Selecting a 200 MB string in the tree no longer re-reads it every frame (the selection's spans are cached), which made the app unresponsive.
 - Recent files store the canonical absolute path, so a file opened as `./a.json` and as `/full/path/a.json` no longer shows up twice, and a relative command-line path keeps working when the app is started from another folder.

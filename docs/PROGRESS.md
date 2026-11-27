@@ -11,10 +11,10 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 08 — Raw text view |
-| **Status** | 🟦 In progress |
-| **Current sub-task** | 8b app: raw view state + UI |
-| **Next action** | `raw_view.rs` + `ui/raw.rs`, tree | raw split, sync, Go to |
+| **Current step** | 09 — Search engine (core) |
+| **Status** | ⬜ Not started |
+| **Current sub-task** | — |
+| **Next action** | Martin reviews step 08; then start step 09 (search engine) |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -38,7 +38,7 @@
 | 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | bbc18fb |
 | 06 | App shell | MVP | ✅ | 2026-11-27 | 2026-11-27 | eccc3e5, 509580d |
 | 07 | Tree view | MVP | ✅ | 2026-11-27 | 2026-11-27 | fe313f8, e202057 |
-| 08 | Raw text view | MVP | 🟦 | 2026-11-27 | | |
+| 08 | Raw text view | MVP | ✅ | 2026-11-27 | 2026-11-27 | ebda464 (8a), see git log (8b) |
 | 09 | Search engine (core) | MVP | ⬜ | | | |
 | 10 | Search UI | MVP | ⬜ | | | |
 | 11 | Breadcrumbs & copy | MVP | ⬜ | | | |
@@ -50,7 +50,7 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 7 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 8 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
 
 ### MVP time estimate (made 2026-11-25, after step 01)
 About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
@@ -92,7 +92,7 @@ Fill in with real measurements (details and machine info in `docs/PERF.md`). Mar
 | First search result | < 200 ms | | | 10 | — |
 | `$..price` JSONPath (2 GB) | < 5 s | | | 14 | — |
 | Expand 1M-child node | < 200 ms | < 0.01 ms in the app (groups); 10M array 56 ns bench; deep group children ~110 ms warm in the background | M3P | 07 | ✅ |
-| Scrolling p99 frame time | < 16 ms | tree: p99 0.94 ms, max 1.15 ms (10 M rows, drag); raw view / results later | M3P | 07/08/10 | ✅ tree |
+| Scrolling p99 frame time | < 16 ms | tree: p99 0.94 ms, max 1.15 ms (10 M rows, drag); raw view: thumb drag on `orders_min_2g` CPU frame p99 7.2 / max 15.4 ms, paging p99 8.8 ms, 200 MB string p99 10.7 ms; results later | M3P | 07/08/10 | ✅ tree, raw |
 | Index memory (% of file) | ≤ 25 % | 21.9 % (pretty) / 4.2 % (minified, adaptive) | M3P | 04 | ✅ |
 | Diff 2 × 1 GB, warm | < 30 s | | | 18 | — |
 
@@ -435,7 +435,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 020: own virtual list (f64 scroll), non-focusable rows, keys, deep-row indent cap, system fonts, copy limit, debug overlay.
 
 ### Step 08 — Raw text view
-**Status:** 🟦 In progress · **Started:** 2026-11-27 · **Finished:** —
+**Status:** ✅ Done · **Started:** 2026-11-27 · **Finished:** 2026-11-27
 
 **Plan**
 - [x] 8a core `index::lines`: fast `line_start` (via checkpoints, no scan back over a 2 GB line), `line_offset(line)`, bounded `position` (char column, byte column beyond a limit); status bar uses it
@@ -444,25 +444,43 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [x] 8a core original mode: soft-wrapped rows of file lines (`orig` rows forward/backward, row containing an offset), highlight tokenizer for a byte slice
 - [x] 8a core `nav::address_of` (child-index path for the tree) and `goto` (parse `line`, `line:col`, `@offset` with k/m/g, `$.a.b[3]`; resolve)
 - [x] 8a tests: unit (indentation, empties, escapes, UTF-8 split safety at slice edges, wrap), proptest round trip (pretty output re-parsed == source), backward == forward, seek == naive; fuzz target `pretty_range`; bench
-- [ ] 8b app: `raw_view.rs` state (mode, anchor, row window, seek jobs, selection, flash), `ui/raw.rs` (virtualized rows, gutter, highlight, own scrollbar mapped to bytes, wheel), tree | raw split with focus routing
-- [ ] 8b app: sync tree → raw (scroll + flash) and raw → tree (click → `node_at_offset` → reveal, on a worker when big), text selection + Ctrl/Cmd+C of source bytes (50 MB cap), Go to dialog (Ctrl/Cmd+L)
-- [ ] 8c kittest: toggle mode, go to line, tree click scrolls raw, raw click selects in tree, copy span
-- [ ] 8c manual / egui-mcp: orders_min_2g (Pretty, scroll + thumb drag frame times), orders_2g (Original, go to line 12,345,678), huge_string, sync with deep/grouped nodes; docs
+- [x] 8b app: `raw_view.rs` state (mode, anchor, row window, seek jobs, selection, flash), `ui/raw.rs` (virtualized rows, gutter, highlight, own scrollbar mapped to bytes, wheel), tree | raw split with focus routing
+- [x] 8b app: sync tree → raw (scroll + flash) and raw → tree (click → `node_at_offset` → reveal, on a worker when big), text selection + Ctrl/Cmd+C of source bytes (50 MB cap), Go to dialog (Ctrl/Cmd+L)
+- [x] 8c kittest: toggle mode, go to line, tree click scrolls raw, raw click selects in tree, copy span
+- [x] 8c manual / egui-mcp: orders_min_2g (Pretty, scroll + thumb drag frame times), orders_2g (Original, go to line 12,345,678), huge_string, sync with deep/grouped nodes; docs
 
 **Acceptance criteria** (copied from the step file)
-- [ ] `orders_min_2g.json` (single line): opens in Pretty mode; scrolling and thumb dragging stay at 60 fps.
+- [x] `orders_min_2g.json` (single line): opens in Pretty mode; scrolling and thumb dragging stay at 60 fps. — *Opens in Pretty (screenshot, avg line > 2,000 B). Optimized build + egui-mcp, overlay after Reset: thumb drag end to end and back (600 steps, warm) CPU frame p99 7.23 / max 15.4 ms; first cold pass had one 36 ms frame (page faults / first glyphs). Keyboard paging (300 keys, same `scroll_by` path as the wheel) CPU frame p99 8.8 / max 13.1 ms. egui-mcp's wheel events at a raw position didn't reach either pane this session, so wheel scrolling is covered by kittests (`mouse_wheel_*`).*
 - [x] Pretty output re-parsed equals the source value (test on fixtures ≤ 10 MB, comparing serde values). (`tests/pretty.rs`: golden fixtures × wraps 16/61/400 × full/adaptive index; 400 generated docs per run (40,000 in a stress run); ignored `fixtures_10m` on `orders_10m` + `orders_min_10m` (full and adaptive index). Also compares the whitespace-free bytes exactly, which covers numbers serde can't parse such as `0.1E310`)
-- [ ] Original mode on the pretty 2 GB fixture shows correct line numbers; "Go to line 12,345,678" lands correctly.
-- [ ] Tree ↔ raw sync works both ways, including deep and grouped nodes.
-- [ ] `huge_string.json` scrolls through the string without freezing.
-- [ ] Copy of a selected span gives the exact source bytes.
+- [x] Original mode on the pretty 2 GB fixture shows correct line numbers; "Go to line 12,345,678" lands correctly. — *`orders_2g.json` opens in Original; Cmd+L → `12,345,678` shows lines 12,345,676 … with line 12,345,678 (`  },`, byte 275,184,583, cross-checked with a Python scan) as the third row; tree selects `[314,585]`. kittest `go_to_line_offset_and_path` on a 3,000-line file.*
+- [x] Tree ↔ raw sync works both ways, including deep and grouped nodes. — *Real app: tree click → raw scroll + flash (orders_16k); raw click → tree on `orders_16k` (`qty : 3`), `prim_array_10m` at 63.9 % (`[6,385,183]` inside nested groups), `orders_min_2g` (a record field in adaptive mode), `deep_100k` Go to `@450000` → depth 56,250. kittests `raw_click_selects_the_value_in_the_tree`, `tree_selection_scrolls_the_raw_view_and_flashes` (deep path + real tree click + arrow key).*
+- [x] `huge_string.json` scrolls through the string without freezing. — *200 MiB fixture (`gen-fixtures string --size 200m`): thumb to 50 %, 250 PageUp/↑/PageDown: UI p99 8.0 / max 10.2 ms, CPU frame p99 10.7 ms (one 39.8 ms frame, new glyphs). Found and fixed on the way: the selected 200 MB string was re-read every frame (700 ms frames) through `selected_spans()`.*
+- [x] Copy of a selected span gives the exact source bytes. — *kittest `drag_selection_copies_the_exact_source_bytes` (drag across rows with Armenian/CJK, compares with the file bytes; Shift+click extends); `copy_over_the_limit_shows_a_message` (51 MB).*
 
 **Progress notes**
 - 8a done: `LineTable::{line_start, line_offset, position}` (no backward scan over a long line); `pretty::{pretty_lines, Generator, anchor_before, seek, prev_line, SeekState}`, `pretty::original::{row_at, next_row, prev_row}`, `pretty::lex::{tokenize, state_in_row}`, `nav::Navigator::address_of`, `goto::{parse, resolve_line, resolve_path}`. Fuzz `pretty_range` 502,697 runs clean. Bench (100 MB): viewport 2.6 µs, jump to any offset 2.2 µs, a viewport back 1.4 ms, original jump + viewport 1.7 µs.
 - Found on the way: `cancel_returns_quickly` flakes (≈ 1 in 4 runs, 57–60 ms vs 50 ms) when it runs next to the 10,000-case proptests in the same binary; reproduced on the step 07 commit, so not caused by this step (I-011).
 
+- 8b/8c done: raw view (state `raw_view/`, UI `ui/raw.rs` + `ui/raw_input.rs`), `panes.rs` (focus, sync, locate jobs), Go to dialog, split layout, kittests, manual checks above. Fixes found while driving the real app: a click resolved to the next character (caret rounding → now the glyph under the pointer); the selected spans were recomputed every frame (200 MB string → 700 ms frames; now cached per row + generation); scrolling up kept every passed row in the layout cache (4,483 rows laid out per frame; now trimmed); off-screen rows registered inverted accessibility rects.
+
 **Quality gates (last run)**
-- [ ] fmt · [ ] clippy · [ ] tests · [ ] cargo deny · [ ] benches
+- [x] fmt · [x] clippy (workspace, all targets) · [x] tests (207 passed, 0 failed, 6 ignored: 5 big-file tests pass with `--ignored --test-threads=1` (the RSS test is disturbed when they run in parallel, as before), `pretty::fixtures_10m` passes with `--ignored`; two full runs; new: core 2 lines + 8 pretty + 2 wrap + 2 goto unit, 4 doctests, `tests/pretty.rs` 5, nav proptest checks `address_of`; app 2 unit, `tests/raw.rs` 9) · [x] cargo deny · [x] benches (`--quick`, all within 10 % of step 07; new `pretty` bench) · fuzz `pretty_range` 502,697 runs clean. Run 2026-11-27 on M3 Pro.
+
+**What was done**
+- Core: `pretty::{pretty_lines, Generator, PrettyPos, PrettyLine, Token, TokenKind, anchor_before, seek, SeekState, prev_line}`, `pretty::original::{row_at, next_row, prev_row, OrigRow}`, `pretty::lex::{tokenize, state_in_row, LexState}`, `goto::{parse, resolve_line, resolve_path}`, `Navigator::address_of`, `LineTable::{line_start, line_offset, position, TextPos}`; fuzz target `pretty_range`; bench `pretty`.
+- App: raw view (Pretty / Original, gutter, highlight, byte-mapped scrollbar, wheel/keys, selection + copy, flash), tree | raw resizable split with keyboard focus per pane, sync both ways, "Show in raw view", Go to dialog (Ctrl/Cmd+L), shortcuts dialog entries, status bar column bounded on long lines. `tree_view.rs` → `tree_view/{mod,keys}.rs`. All files < 500 lines.
+
+**Known limitations / follow-ups**
+- Rows wrap every 400 **bytes** (not characters) of a long line or token; same for ASCII (ADR 021).
+- Revealing a value ~50k levels deep (Go to / raw click in `deep_100k`) costs one 20–60 ms frame in the tree model (I-012).
+- Hiding the tree or the raw pane (architecture §7) isn't there yet; the split is resizable (I-013).
+- Original mode: after a far jump into the middle of a very long line, colours may be wrong for a moment until the worker finds the string state (only when that needs > 1 MiB of scanning).
+- No horizontal scrollbar: long rows scroll sideways with Shift+wheel / the trackpad.
+- Search match highlighting in the raw view comes with step 10.
+
+**Decisions** (also in docs/DECISIONS.md)
+- 021: pretty layout as a pure function of the bytes, long tokens split at byte steps from the token start, anchors from the index, budgeted resumable seek.
+- 022: raw view UI (byte-anchored scrolling, shared `NavCache`, gutter offsets, sync, focus, copy, Go to on a worker).
 
 ---
 
@@ -476,6 +494,12 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-27 (4) · Step 08
+- Did: step 08 raw view end to end. Core `pretty` (position-independent row layout, anchors, budgeted seek, rows backwards, original-mode rows, lexer), `goto`, `address_of`, fast line-table lookups. App: raw view next to the tree with sync both ways, selection + copy, Go to, focus per pane. Checked every criterion in the optimized app through egui-mcp (orders_min_2g thumb drag p99 7.2 ms, Go to line 12,345,678 on orders_2g, 200 MB string, deep and grouped sync); fixed four bugs found that way (click caret rounding, per-frame re-read of a selected 200 MB string, unbounded row cache when scrolling up, off-screen row rects).
+- Tests: 207 passed, 0 failed, 6 ignored · fmt/clippy/deny clean · benches within 10 % · fuzz `pretty_range` 502,697 runs clean. Pre-existing flake `cancel_returns_quickly` seen once (I-011, also on the step 07 commit)
+- Commits: ebda464 (8a core), 8b app + docs (see git log); not pushed
+- Next: Martin reviews step 08; then step 09 (search engine)
 
 ### 2026-11-27 (3) · Step 07
 - Did: step 07 tree view end to end. Core: shared `NavCache`, non-blocking child reads + `prepare` jobs, galloping lookup (2 GB root table 295 → 110 ms), `tree` row model (segments, nested groups, addresses, restore) and preview index. App: virtual tree list with own f64 scroll, colours, groups, keyboard, context menu, preview while indexing, debug overlay. Checked every criterion in the opt-level 3 app through egui-mcp (2 GB preview rows in 134 ms, 10 M-row scrolling ≤ 1.2 ms frames, deep 100k, Unicode light/dark).
@@ -544,4 +568,6 @@ Issues found during the build that are not fixed yet.
 | I-009 | 07 | Low | Adaptive mode (e.g. `orders_min_2g`, depth ≤ 1 stored): reading a record whose children include a big unstored container finds its end with a SIMD scan on the UI thread, and counts of unstored containers > 64 KiB show `{…}` until expanded. Fine for typical records; a record holding a 100 MB+ nested array would stall a frame. Fix: do that scan in the prepare job, or store such containers in the index | 12 | Open |
 | I-010 | 07 | Low | Rare app test flakes: in ~50 `cargo test` runs, once `open_shows_progress_then_done_and_cancel_works` hit the 20 s `step_until` timeout (which wait wasn't captured) and once `settings_round_trip_through_the_window` didn't find "Cache indexes on disk" (under an artificial all-cores load). Not reproduced in 40 further loaded runs of `shell` + `tree`. Check again when CI runs tests | 12 | Open |
 | I-011 | 08 | Low | `index_build::cancel_returns_quickly` flakes (≈ 1 in 4 runs of the whole binary: 57–60 ms vs the 50 ms limit) because the binary's 10,000-case proptests load every core at the same time; passes alone. Reproduced on the step 07 commit. Fix: run it in its own test binary or under a lock with the proptests | 12 | Open |
+| I-012 | 08 | Low | Revealing a value tens of thousands of levels deep (raw click / Go to in `deep_100k`, depth 56,250) costs one 20–60 ms frame: `TreeModel::reveal` expands level by level on the UI thread, O(depth × segments). Fix: insert the whole chain of segments in one pass, or reveal on a worker | 12 | Open |
+| I-013 | 08 | Low | Tree and raw panes can't be hidden yet (architecture §7: "either can be hidden"); only the split is resizable. Add View toggles (toolbar + shortcuts) and persist them | 12 | Open |
 | I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Open |
