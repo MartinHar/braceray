@@ -580,7 +580,7 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 ### 2026-11-27 (6) · Step 10
 - Did: step 10 search UI end to end: core search pool (I-014), `matches_in`, `SearchNav`, JSONPath formatting + serde-walk oracle; app search bar, per-tab search state, results panel, raw highlights, tree markers, status, shortcuts, history, copy all paths. Checked in the optimized app on `orders_2g.json` through egui-mcp (counts, jumps first/middle/last/beyond the 5 M cap, 2.45 M-row list p99 4.5 ms) and with a 60 fps harness for first-result timing. Fixed three things found that way (horizontal reveal, preview whitespace, missing glyph).
 - Tests: 256 passed, 0 failed, 9 ignored (2 GB tests pass with `--ignored`) · fmt/clippy/deny clean · benches: search faster, rest within noise
-- Commits: de4c6e2 (10a core), e8bbdd6 (10b app + docs); not pushed
+- Commits: de4c6e2 (10a core), e8bbdd6 (10b app + docs), plus a fix from the automated security review (temp file with O_EXCL); not pushed
 - Next: Martin reviews step 10 and answers the debounce question; then step 11 (breadcrumbs & copy)
 
 ### 2026-11-27 (5) · Step 09

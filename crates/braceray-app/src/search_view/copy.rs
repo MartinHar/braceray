@@ -74,18 +74,9 @@ impl CopyPaths {
                 let to_file = rows > COPY_TO_FILE_ABOVE;
                 let mut text = String::new();
                 let mut file = if to_file {
-                    let path = std::env::temp_dir().join(format!(
-                        "braceray-paths-{}-{}.txt",
-                        std::process::id(),
-                        std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map_or(0, |d| d.as_millis())
-                    ));
-                    match std::fs::File::create(&path) {
-                        Ok(f) => Some((path, std::io::BufWriter::new(f))),
-                        Err(e) => {
-                            return Ok(CopyOutcome::Failed(format!("{}: {e}", path.display())));
-                        }
+                    match create_temp_file() {
+                        Ok((path, f)) => Some((path, std::io::BufWriter::new(f))),
+                        Err(e) => return Ok(CopyOutcome::Failed(e)),
                     }
                 } else {
                     None
@@ -149,5 +140,49 @@ impl CopyPaths {
             JobEvent::Failed(e) => Some(CopyOutcome::Failed(e.to_string())),
             JobEvent::Cancelled | JobEvent::Partial(()) => None,
         };
+    }
+}
+
+/// Creates a new, empty `braceray-paths-….txt` in the temp dir. `create_new` (O_EXCL)
+/// refuses an existing path or symlink, so a file planted in a shared temp dir can't be
+/// overwritten through us; on a clash the next name is tried.
+fn create_temp_file() -> Result<(PathBuf, std::fs::File), String> {
+    let dir = std::env::temp_dir();
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis());
+    let mut last = String::new();
+    for n in 0..100 {
+        let path = dir.join(format!(
+            "braceray-paths-{}-{stamp}-{n}.txt",
+            std::process::id()
+        ));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(f) => return Ok((path, f)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                last = format!("{}: {e}", path.display());
+            }
+            Err(e) => return Err(format!("{}: {e}", path.display())),
+        }
+    }
+    Err(last)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn temp_files_are_new_and_never_reused() {
+        let (a, _fa) = create_temp_file().unwrap();
+        let (b, _fb) = create_temp_file().unwrap();
+        assert_ne!(a, b);
+        assert!(a.exists() && b.exists());
+        let _ = std::fs::remove_file(a);
+        let _ = std::fs::remove_file(b);
     }
 }
