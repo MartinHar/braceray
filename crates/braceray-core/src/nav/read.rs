@@ -76,6 +76,17 @@ impl Navigator<'_> {
         Ok(())
     }
 
+    /// Offset of the latest cached checkpoint (a child start, before its whitespace) at
+    /// or before `offset`, if `c`'s checkpoint table is cached. Never builds one.
+    pub(crate) fn checkpoint_before_if_ready(&self, c: &Container, offset: u64) -> Option<u64> {
+        let cps = self.cache().get(c.start)?;
+        let k = cps
+            .starts
+            .partition_point(|&s| s as u64 <= offset)
+            .checked_sub(1)?;
+        Some(cps.starts[k] as u64)
+    }
+
     fn stored_count(&self, c: &Container) -> Option<u64> {
         let n = c.node?;
         let count = self.node(n).child_count();

@@ -5,10 +5,12 @@
 pub mod cache;
 pub mod document;
 pub mod error;
+pub mod goto;
 pub mod index;
 pub mod job;
 mod mmap;
 pub mod nav;
+pub mod pretty;
 pub mod tree;
 
 pub use document::{Document, FileIdentity, Sniff};

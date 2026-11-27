@@ -25,5 +25,13 @@ test = false
 doc = false
 bench = false
 
+
+[[bin]]
+name = "pretty_range"
+path = "fuzz_targets/pretty_range.rs"
+test = false
+doc = false
+bench = false
+
 [profile.release]
 debug = 1

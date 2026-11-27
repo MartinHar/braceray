@@ -12,9 +12,9 @@
 | Field | Value |
 |---|---|
 | **Current step** | 08 — Raw text view |
-| **Status** | ⬜ Not started |
-| **Current sub-task** | — |
-| **Next action** | Martin reviews step 07; then start step 08 (raw view) |
+| **Status** | 🟦 In progress |
+| **Current sub-task** | 8b app: raw view state + UI |
+| **Next action** | `raw_view.rs` + `ui/raw.rs`, tree | raw split, sync, Go to |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -38,7 +38,7 @@
 | 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | bbc18fb |
 | 06 | App shell | MVP | ✅ | 2026-11-27 | 2026-11-27 | eccc3e5, 509580d |
 | 07 | Tree view | MVP | ✅ | 2026-11-27 | 2026-11-27 | fe313f8, e202057 |
-| 08 | Raw text view | MVP | ⬜ | | | |
+| 08 | Raw text view | MVP | 🟦 | 2026-11-27 | | |
 | 09 | Search engine (core) | MVP | ⬜ | | | |
 | 10 | Search UI | MVP | ⬜ | | | |
 | 11 | Breadcrumbs & copy | MVP | ⬜ | | | |
@@ -434,6 +434,36 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 019: shared `NavCache`, `*_if_ready` on the UI thread, `prepare` on workers, galloping lookup, root prefetch.
 - 020: own virtual list (f64 scroll), non-focusable rows, keys, deep-row indent cap, system fonts, copy limit, debug overlay.
 
+### Step 08 — Raw text view
+**Status:** 🟦 In progress · **Started:** 2026-11-27 · **Finished:** —
+
+**Plan**
+- [x] 8a core `index::lines`: fast `line_start` (via checkpoints, no scan back over a 2 GB line), `line_offset(line)`, bounded `position` (char column, byte column beyond a limit); status bar uses it
+- [x] 8a core `pretty`: `PrettyPos` (offset, depth, inside-a-long-token start), `PrettyLine { depth, tokens, source_span }`, resumable generator `pretty_lines(bytes, start, max_lines, opts)`; long tokens wrap at fixed byte steps from the token start (UTF-8 / escape safe), so stepping up/down inside a 200 MB string is O(1)
+- [x] 8a core `pretty::anchor`: line start at or before an offset from stored nodes + ready checkpoints; budgeted `seek` (resumable on a worker) and `lines_before`
+- [x] 8a core original mode: soft-wrapped rows of file lines (`orig` rows forward/backward, row containing an offset), highlight tokenizer for a byte slice
+- [x] 8a core `nav::address_of` (child-index path for the tree) and `goto` (parse `line`, `line:col`, `@offset` with k/m/g, `$.a.b[3]`; resolve)
+- [x] 8a tests: unit (indentation, empties, escapes, UTF-8 split safety at slice edges, wrap), proptest round trip (pretty output re-parsed == source), backward == forward, seek == naive; fuzz target `pretty_range`; bench
+- [ ] 8b app: `raw_view.rs` state (mode, anchor, row window, seek jobs, selection, flash), `ui/raw.rs` (virtualized rows, gutter, highlight, own scrollbar mapped to bytes, wheel), tree | raw split with focus routing
+- [ ] 8b app: sync tree → raw (scroll + flash) and raw → tree (click → `node_at_offset` → reveal, on a worker when big), text selection + Ctrl/Cmd+C of source bytes (50 MB cap), Go to dialog (Ctrl/Cmd+L)
+- [ ] 8c kittest: toggle mode, go to line, tree click scrolls raw, raw click selects in tree, copy span
+- [ ] 8c manual / egui-mcp: orders_min_2g (Pretty, scroll + thumb drag frame times), orders_2g (Original, go to line 12,345,678), huge_string, sync with deep/grouped nodes; docs
+
+**Acceptance criteria** (copied from the step file)
+- [ ] `orders_min_2g.json` (single line): opens in Pretty mode; scrolling and thumb dragging stay at 60 fps.
+- [x] Pretty output re-parsed equals the source value (test on fixtures ≤ 10 MB, comparing serde values). (`tests/pretty.rs`: golden fixtures × wraps 16/61/400 × full/adaptive index; 400 generated docs per run (40,000 in a stress run); ignored `fixtures_10m` on `orders_10m` + `orders_min_10m` (full and adaptive index). Also compares the whitespace-free bytes exactly, which covers numbers serde can't parse such as `0.1E310`)
+- [ ] Original mode on the pretty 2 GB fixture shows correct line numbers; "Go to line 12,345,678" lands correctly.
+- [ ] Tree ↔ raw sync works both ways, including deep and grouped nodes.
+- [ ] `huge_string.json` scrolls through the string without freezing.
+- [ ] Copy of a selected span gives the exact source bytes.
+
+**Progress notes**
+- 8a done: `LineTable::{line_start, line_offset, position}` (no backward scan over a long line); `pretty::{pretty_lines, Generator, anchor_before, seek, prev_line, SeekState}`, `pretty::original::{row_at, next_row, prev_row}`, `pretty::lex::{tokenize, state_in_row}`, `nav::Navigator::address_of`, `goto::{parse, resolve_line, resolve_path}`. Fuzz `pretty_range` 502,697 runs clean. Bench (100 MB): viewport 2.6 µs, jump to any offset 2.2 µs, a viewport back 1.4 ms, original jump + viewport 1.7 µs.
+- Found on the way: `cancel_returns_quickly` flakes (≈ 1 in 4 runs, 57–60 ms vs 50 ms) when it runs next to the 10,000-case proptests in the same binary; reproduced on the step 07 commit, so not caused by this step (I-011).
+
+**Quality gates (last run)**
+- [ ] fmt · [ ] clippy · [ ] tests · [ ] cargo deny · [ ] benches
+
 ---
 
 ## Session log
@@ -513,4 +543,5 @@ Issues found during the build that are not fixed yet.
 | I-008 | 06 | Low | Status-bar memory shows the resident set, which includes mapped file and cache pages (2.24 GB right after building a 2 GB index). Show heap/private memory instead to match the "app memory excluding the mapped file" target | 12 | Open |
 | I-009 | 07 | Low | Adaptive mode (e.g. `orders_min_2g`, depth ≤ 1 stored): reading a record whose children include a big unstored container finds its end with a SIMD scan on the UI thread, and counts of unstored containers > 64 KiB show `{…}` until expanded. Fine for typical records; a record holding a 100 MB+ nested array would stall a frame. Fix: do that scan in the prepare job, or store such containers in the index | 12 | Open |
 | I-010 | 07 | Low | Rare app test flakes: in ~50 `cargo test` runs, once `open_shows_progress_then_done_and_cancel_works` hit the 20 s `step_until` timeout (which wait wasn't captured) and once `settings_round_trip_through_the_window` didn't find "Cache indexes on disk" (under an artificial all-cores load). Not reproduced in 40 further loaded runs of `shell` + `tree`. Check again when CI runs tests | 12 | Open |
+| I-011 | 08 | Low | `index_build::cancel_returns_quickly` flakes (≈ 1 in 4 runs of the whole binary: 57–60 ms vs the 50 ms limit) because the binary's 10,000-case proptests load every core at the same time; passes alone. Reproduced on the step 07 commit. Fix: run it in its own test binary or under a lock with the proptests | 12 | Open |
 | I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Open |

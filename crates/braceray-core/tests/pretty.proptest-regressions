@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5addbcccc5a7e0223d9b92f14618a7d7733b175a3fa8c3a7cb9c97ded749aee0 # shrinks to tree = Arr([Arr([Num("0.1E310")])]), layout = Minified, wrap = 16, seed = 0
+cc 2bfc407ebe6fb22bd043a74f4305bfd9dc2f5348ea67e0480666ee5c3ab2722b # shrinks to tree = Obj([]), layout = Random(["  \n  "]), wrap = 16, seed = 602963344988976857
+cc eaae5428d552f343914441c2bafa9a726c6418f40464209bc76b96cd0e5254b1 # shrinks to tree = Arr([Arr([Num("-10000000.000E-0")])]), layout = Minified, wrap = 16, seed = 0

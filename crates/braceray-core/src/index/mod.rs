@@ -14,7 +14,7 @@ pub use build::{DEFAULT_CHUNK_SIZE, IndexOptions, build_bytes, build_bytes_with,
 
 use std::fmt;
 
-pub use lines::{LINE_BLOCK, LineTable};
+pub use lines::{LINE_BLOCK, LineTable, TextPos};
 pub use node::{ContainerKind, MAX_DEPTH, MAX_OFFSET, NO_PARENT, Node, UNKNOWN_COUNT};
 pub(crate) use parser::intern_expected;
 pub(crate) use store::NodeStore;

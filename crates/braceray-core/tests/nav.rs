@@ -129,9 +129,22 @@ proptest! {
             for o in &offsets {
                 let off = o.index(bytes.len() + 1);
                 let loc = nav.node_at_offset(off as u64);
-                let got = to_segs(&bytes, &nav.path_of(&loc));
+                let path = nav.path_of(&loc);
+                let got = to_segs(&bytes, &path);
                 prop_assert_eq!(got, oracle_path(&values, off), "offset {} budget {} in {:?}",
                     off, budget, String::from_utf8_lossy(&bytes));
+                // The address walks the same steps by child index.
+                let address = nav.address_of(&loc);
+                prop_assert_eq!(address.len(), path.len());
+                let mut c = nav.root_container();
+                for (k, seg) in address.iter().zip(&path) {
+                    let child = nav.children(c.as_ref().unwrap(), *k..*k + 1)[0];
+                    match seg {
+                        PathSegment::Key(span) => prop_assert_eq!(child.key, Some(*span)),
+                        PathSegment::Index(i) => prop_assert_eq!(i, k),
+                    }
+                    c = nav.container_of(&child);
+                }
             }
         }
     }

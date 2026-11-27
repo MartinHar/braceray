@@ -53,7 +53,7 @@ pub struct Span {
 }
 
 impl Span {
-    fn new(start: usize, end: usize) -> Self {
+    pub(crate) fn new(start: usize, end: usize) -> Self {
         Span {
             start: start as u64,
             end: end as u64,
@@ -280,6 +280,28 @@ impl<'a> Navigator<'a> {
         }
         path.extend(loc.steps.iter().map(|(idx, c)| segment(*idx, c)));
         path
+    }
+
+    /// Child-index path from the top-level value to `loc` (the address
+    /// [`TreeModel::reveal`](crate::tree::TreeModel::reveal) takes). May build the
+    /// checkpoint tables of the containers on the way (use a worker for big ones).
+    pub fn address_of(&self, loc: &Location) -> Vec<u64> {
+        let mut chain = Vec::new();
+        let mut n = loc.node;
+        while let Some(id) = n {
+            chain.push(id);
+            n = self.parent(id);
+        }
+        let mut out = Vec::with_capacity(chain.len() + loc.steps.len());
+        for pair in chain.windows(2).rev() {
+            let (child, parent) = (pair[0], pair[1]);
+            let start = self.node(child).start();
+            if let Some((idx, _)) = self.child_containing(&self.container(parent), start) {
+                out.push(idx);
+            }
+        }
+        out.extend(loc.steps.iter().map(|(idx, _)| *idx));
+        out
     }
 
     /// 1-based `(line, column)` of `offset`; the column counts characters.
