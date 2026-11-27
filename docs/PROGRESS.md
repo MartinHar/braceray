@@ -11,10 +11,10 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 07 — Tree view |
-| **Status** | 🟦 In progress |
-| **Current sub-task** | 7b: app tree view (`ui/tree.rs`) |
-| **Next action** | Tree state per tab, virtualized rows, prepare jobs, keyboard, context menu |
+| **Current step** | 08 — Raw text view |
+| **Status** | ⬜ Not started |
+| **Current sub-task** | — |
+| **Next action** | Martin reviews step 07; then start step 08 (raw view) |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -37,7 +37,7 @@
 | 04 | Structural index & validation | MVP | ✅ | 2026-11-25 | 2026-11-25 | eac9cbd, 1c02d57, 16b7adc, 4d commit |
 | 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | bbc18fb |
 | 06 | App shell | MVP | ✅ | 2026-11-27 | 2026-11-27 | eccc3e5, 509580d |
-| 07 | Tree view | MVP | 🟦 | 2026-11-27 | | |
+| 07 | Tree view | MVP | ✅ | 2026-11-27 | 2026-11-27 | fe313f8 + 7b commit |
 | 08 | Raw text view | MVP | ⬜ | | | |
 | 09 | Search engine (core) | MVP | ⬜ | | | |
 | 10 | Search UI | MVP | ⬜ | | | |
@@ -50,7 +50,7 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 6 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 7 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
 
 ### MVP time estimate (made 2026-11-25, after step 01)
 About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
@@ -82,7 +82,7 @@ Fill in with real measurements (details and machine info in `docs/PERF.md`). Mar
 
 | Target (from overview.md) | Goal | Measured | Machine | Step | Met? |
 |---|---|---|---|---|---|
-| First visible content (2 GB) | < 1 s | | | 07 | — |
+| First visible content (2 GB) | < 1 s | 134–163 ms open → first tree rows (preview), in-app | M3P | 07 | ✅ |
 | Full index, warm (2 GB) | < 5 s | 1.18 s (pretty) / 1.94 s (minified) | M3P | 04 | ✅ |
 | Full index, cold NVMe (2 GB) | < 10 s | ~3.0 s / 3.7 s (page cache partly evicted, not a true reboot-cold) | M3P | 04 | — |
 | Re-open from cache (2 GB) | < 1 s | 14 ms (pretty, entry 471 MB) / 3.6 ms (minified), warm | M3P | 05 | ✅ |
@@ -91,8 +91,8 @@ Fill in with real measurements (details and machine info in `docs/PERF.md`). Mar
 | Simple regex (2 GB) | < 5 s | | | 13 | — |
 | First search result | < 200 ms | | | 10 | — |
 | `$..price` JSONPath (2 GB) | < 5 s | | | 14 | — |
-| Expand 1M-child node | < 200 ms | 6.0 ms core only (checkpoints + 50 children); UI in step 07 | M3P | 07 | — |
-| Scrolling p99 frame time | < 16 ms | | | 07/08/10 | — |
+| Expand 1M-child node | < 200 ms | < 0.01 ms in the app (groups); 10M array 56 ns bench; deep group children ~110 ms warm in the background | M3P | 07 | ✅ |
+| Scrolling p99 frame time | < 16 ms | tree: p99 0.94 ms, max 1.15 ms (10 M rows, drag); raw view / results later | M3P | 07/08/10 | ✅ tree |
 | Index memory (% of file) | ≤ 25 % | 21.9 % (pretty) / 4.2 % (minified, adaptive) | M3P | 04 | ✅ |
 | Diff 2 × 1 GB, warm | < 30 s | | | 18 | — |
 
@@ -389,34 +389,50 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 017: macOS "Open With" deferred to step 12.
 
 ### Step 07 — Tree view
-**Status:** 🟦 In progress · **Started:** 2026-11-27 · **Finished:** —
+**Status:** ✅ Done · **Started:** 2026-11-27 · **Finished:** 2026-11-27
 
 **Plan**
 - [x] 7a core `nav`: shareable `NavCache` (checkpoint cache usable from the UI thread and workers), non-blocking `children_if_ready` / `child_count_if_ready` (cheap sync path for small containers), cancellable `prepare`
 - [x] 7a core `tree`: `TreeModel` with `Vec<Segment>` rows (the "RowSpan" variant of the spec), groups (nested above group_size²), expand / collapse / parent / address (child-index path) / reveal / rebuild; `rows(first, n)`; unit tests vs serde walks + proptest
 - [x] 7a core `tree::preview`: index of the first few MB for preview mode (same model, same offsets)
 - [x] 7a bench `rows_for_viewport` on a 10M-child array; checkpoint build time on `orders_2g.json`
-- [ ] 7b app: `ui/tree.rs` virtualized rows (`show_rows`), row painting (colours per type, counts, badges, lossy UTF-8), selection + keyboard (↑↓←→ Home End PgUp PgDn `*` Enter), context menu (copy key / value with size guard; path + raw view hooks), background checkpoint jobs with loading rows
-- [ ] 7b app: preview mode while indexing ("Preview: indexing… 37 %"), switch to the real index keeping expanded state + selection
-- [ ] 7b app: system font fallbacks for Armenian / CJK / emoji (loaded off the UI thread)
-- [ ] 7b app: debug overlay `Ctrl+Shift+D` with frame times (p50 / p99 / max)
-- [ ] 7c kittest: expand/collapse by click and keyboard, group rows > 1000 children, selection moves, context menu copy
-- [ ] 7c manual / egui-mcp: orders_2g, prim_array_10m, wide_1m, deep_100k, Unicode, frame times; docs (PERF, DECISIONS, CHANGELOG)
+- [x] 7b app: `ui/tree.rs` virtualized rows (`show_rows`), row painting (colours per type, counts, badges, lossy UTF-8), selection + keyboard (↑↓←→ Home End PgUp PgDn `*` Enter), context menu (copy key / value with size guard; path + raw view hooks), background checkpoint jobs with loading rows
+- [x] 7b app: preview mode while indexing ("Preview: indexing… 37 %"), switch to the real index keeping expanded state + selection
+- [x] 7b app: system font fallbacks for Armenian / CJK / emoji: already provided by eframe's default `system_fonts` feature (verified in the app, nothing bundled)
+- [x] 7b app: debug overlay `Ctrl+Shift+D` with frame times (p50 / p99 / max)
+- [x] 7c kittest: expand/collapse by click and keyboard, group rows > 1000 children, selection moves, context menu copy
+- [x] 7c manual / egui-mcp: orders_2g, prim_array_10m, wide_1m, deep_100k, Unicode, frame times; docs (PERF, DECISIONS, CHANGELOG)
 
 **Acceptance criteria** (copied from the step file)
-- [ ] `orders_2g.json`: expanding the root array (millions of elements, grouped) takes **< 200 ms**.
-- [ ] `prim_array_10m.json` and `wide_1m.json`: expand in < 200 ms; scrolling to the end is smooth.
-- [ ] Scrolling with the mouse wheel and dragging the scrollbar from top to bottom of a fully expanded big array: frames stay < 16 ms (log frame times in debug overlay `Ctrl+Shift+D`).
-- [ ] `deep_100k.json`: expanding 100,000 levels by keyboard works without stack overflow.
-- [ ] Preview mode shows content within 1 s of opening the 2 GB file.
-- [ ] Unicode keys and values render correctly (Armenian, Cyrillic, CJK, emoji); invalid UTF-8 inside strings renders with � and never panics.
-- [ ] All keyboard shortcuts work; context menu actions work.
+- [x] `orders_2g.json`: expanding the root array (millions of elements, grouped) takes **< 200 ms**. (expand < 0.01 ms in the app overlay: 2,450,341 children → 3 groups of 1,000,000 shown at once; bench `tree_10m/expand_root` 56–68 ns. Opening a group deep inside needs the root's checkpoint table: ~110 ms warm on a worker, up to ~1.2 s with evicted pages, shown as "loading…" rows; now prefetched in the background)
+- [x] `prim_array_10m.json` and `wide_1m.json`: expand in < 200 ms; scrolling to the end is smooth. (both < 0.01 ms; End / scrollbar drag reach `[9,999,999]` and `key_999999` with frames ≤ 1.2 ms; the last group of `wide_1m` waited for a 46 ms background prepare)
+- [x] Scrolling with the mouse wheel and dragging the scrollbar from top to bottom of a fully expanded big array: frames stay < 16 ms (log frame times in debug overlay `Ctrl+Shift+D`). (`prim_array_10m` fully expanded = 10,010,011 rows; overlay after Reset, opt-level 3 build driven by egui-mcp: 300 wheel events CPU frame max 0.53 ms; scrollbar drag top → bottom in 300 steps max 1.15 ms, p99 0.94 ms)
+- [x] `deep_100k.json`: expanding 100,000 levels by keyboard works without stack overflow. (kittest `deep_100k_by_keyboard`: 200,000 × "→" through the app's key handler on a 100,000-level file, then real ←/Home/← presses; core test the same in 26 ms; real app: all 100k levels of `deep_100k.json` expanded (199,999 rows), End/← at depth 99,999, frames ≤ 1.1 ms, indent capped with a "depth N" badge)
+- [x] Preview mode shows content within 1 s of opening the 2 GB file. (overlay "First rows after open": 134 ms and 163 ms on `orders_2g.json` with a stale cache; root shows `[4,815+]` from the first 4 MB, then switches to the full index keeping state (kittest `preview_switches_to_the_full_index_keeping_state`). Process launch → window ready is ~1.6 s in the debug-info build and isn't part of this)
+- [x] Unicode keys and values render correctly (Armenian, Cyrillic, CJK, emoji); invalid UTF-8 inside strings renders with � and never panics. (screenshots in light and dark theme: Armenian, Cyrillic, Chinese, Japanese, Korean keys and values, colour emoji; `ok\xFF\xFEend` → `ok��end`; unit test `previews`)
+- [x] All keyboard shortcuts work; context menu actions work. (kittest: click / triangle / double click, ↑↓←→ Home End PgUp PgDn Enter `*`, context menu Copy key / Copy value / Expand all below / Collapse, disabled hooks; egui-mcp in the real app: →, ↓, End, Enter, Ctrl+Shift+D)
 
 **Progress notes**
 - 7a done: `nav::NavCache` (shared checkpoint LRU + per-container read cursor), `children_if_ready` / `child_count_if_ready` / `is_ready` / `prepare(cancel)`; galloping node lookup while walking children: `orders_2g` root (2.45 M children) checkpoint build 295 ms → ~110 ms warm (first touch after a cache load: ~3 s of page faults, hence a worker + loading rows). `tree::TreeModel` (segments, nested groups, expand / collapse / toggle / parent / address / reveal / expansions + restore / expand_all) and `tree::preview::Preview`. Oracle proptests (rows, addresses, parents, ranges, restore, other group size, reveal, preview → full) pass with 5,000 cases. Bench: `rows_for_viewport_50` on 10 M children 4.9 µs, expand root 68 ns; deep 100k by "→" 26 ms in total.
 
 **Quality gates (last run)**
-- [ ] fmt · [ ] clippy · [ ] tests · [ ] cargo deny · [ ] benches
+- [x] fmt · [x] clippy (workspace, all targets) · [x] tests (174 passed, 5 ignored big-file tests; new: core 8 nav/cache unit + 6 tree + 2 doctests, app 2 unit + 6 tree kittest; shell tests updated for the preview) · [x] cargo deny · [x] benches (`--quick`, all within 10 % of step 05/06; new `tree_10m/*`). Run 2026-11-27 on M3 Pro.
+
+**What was done**
+- Core: `nav::NavCache` + non-blocking reads + `prepare`, galloping child walk, read cursor; `tree::{TreeModel, Rows, Row, RowItem, ValueRow, Expand, ExpandAll, Expansions, Reveal}`, `tree::preview::Preview`. Bench `benches/tree.rs`.
+- App: `tree_view.rs` (per-tab tree state, prepare jobs, selection, keys, preview → full switch, group-size change), `ui/tree.rs` (virtual list with f64 scroll, own scrollbar, context menu), `ui/tree_row.rs` (row text, colours, lossy previews), `ui/debug_overlay.rs`; `app.rs` split into `app/{mod,actions}.rs` (under 500 lines). Status bar: the index summary is the hover text of "Index: …".
+- Release binary 8.5 MB (was 7.4 MB).
+
+**Known limitations / follow-ups**
+- Collapsing a row forgets the expansion state below it (ADR 018).
+- Adaptive mode: listing a record that contains a big unstored container scans that container on the UI thread; counts of unstored containers over 64 KiB show `{…}` until expanded (I-009).
+- Two test flakes in ~50 runs (I-010), not reproduced in 40 loaded runs of the app suites.
+- No tracing subscriber yet, so `tracing::info!` lines (first rows, expand everything) only appear in the overlay; logging setup can come with step 12.
+
+**Decisions** (also in docs/DECISIONS.md)
+- 018: segment row model, nested groups, address-based restore.
+- 019: shared `NavCache`, `*_if_ready` on the UI thread, `prepare` on workers, galloping lookup, root prefetch.
+- 020: own virtual list (f64 scroll), non-focusable rows, keys, deep-row indent cap, system fonts, copy limit, debug overlay.
 
 ---
 
@@ -430,6 +446,12 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-27 (3) · Step 07
+- Did: step 07 tree view end to end. Core: shared `NavCache`, non-blocking child reads + `prepare` jobs, galloping lookup (2 GB root table 295 → 110 ms), `tree` row model (segments, nested groups, addresses, restore) and preview index. App: virtual tree list with own f64 scroll, colours, groups, keyboard, context menu, preview while indexing, debug overlay. Checked every criterion in the opt-level 3 app through egui-mcp (2 GB preview rows in 134 ms, 10 M-row scrolling ≤ 1.2 ms frames, deep 100k, Unicode light/dark).
+- Tests: 174 passed, 0 failed, 5 ignored · fmt/clippy/deny clean · benches within 10 %
+- Commits: fe313f8 (7a core), 7b commit (see git log); not pushed
+- Next: Martin reviews step 07; then step 08 (raw view)
 
 ### 2026-11-27 (2) · Step 06
 - Did: drove the debug app with `egui-mcp` (Martin installed it) over stdio JSON-RPC: opened a fixture via Recent files and read the status bar (egui_mcp criterion ✅); resize-latency probe during 2 GB indexing (median 2.7 ms / p95 13.8 ms optimized); Cancel through the UI. Fixed recent files storing non-canonical paths (duplicates); README `egui-mcp` command.
@@ -489,4 +511,6 @@ Issues found during the build that are not fixed yet.
 | I-005 | 05 | Low | `index_100m/scalar_index` (the reference oracle only) runs at 139–147 ms or 270–300 ms for identical source depending on the build path: code-alignment sensitivity of its byte loop. Production builders are unaffected. Possible fix: `-C llvm-args=-align-loops=64` for benches, or restructure the loop if it ever matters | 12 | Open |
 | I-007 | 06 | Low | macOS "Open With" / double-click: winit 0.30 doesn't forward `application:openURLs:`; needs an objc2 app delegate (unsafe) and a bundled `.app` (ADR 017) | 12 | Open |
 | I-008 | 06 | Low | Status-bar memory shows the resident set, which includes mapped file and cache pages (2.24 GB right after building a 2 GB index). Show heap/private memory instead to match the "app memory excluding the mapped file" target | 12 | Open |
+| I-009 | 07 | Low | Adaptive mode (e.g. `orders_min_2g`, depth ≤ 1 stored): reading a record whose children include a big unstored container finds its end with a SIMD scan on the UI thread, and counts of unstored containers > 64 KiB show `{…}` until expanded. Fine for typical records; a record holding a 100 MB+ nested array would stall a frame. Fix: do that scan in the prepare job, or store such containers in the index | 12 | Open |
+| I-010 | 07 | Low | Rare app test flakes: in ~50 `cargo test` runs, once `open_shows_progress_then_done_and_cancel_works` hit the 20 s `step_until` timeout (which wait wasn't captured) and once `settings_round_trip_through_the_window` didn't find "Cache indexes on disk" (under an artificial all-cores load). Not reproduced in 40 further loaded runs of `shell` + `tree`. Check again when CI runs tests | 12 | Open |
 | I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Open |

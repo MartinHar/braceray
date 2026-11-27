@@ -12,11 +12,17 @@ pub fn show(ui: &mut egui::Ui, tab: Option<&OpenDocument>, memory: Option<u64>) 
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
         if let Some(tab) = tab {
+            let summary = tab.summary();
             for (n, part) in parts(tab).into_iter().enumerate() {
                 if n > 0 {
                     ui.label(RichText::new("·").weak());
                 }
-                ui.label(RichText::new(part).small());
+                let index_part = part.starts_with("Index:");
+                let response = ui.label(RichText::new(part).small());
+                // "Indexed 2.15 GB in 3.2 s · 19,603,166 nodes"
+                if index_part && let Some(s) = &summary {
+                    response.on_hover_text(s);
+                }
             }
         } else {
             ui.label(RichText::new("No file open").small().weak());

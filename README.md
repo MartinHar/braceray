@@ -62,6 +62,11 @@ cargo run -p braceray-app -- path/to/file.json
 `EGUI_INSPECTION=0` turns the server off; `EGUI_INSPECTION=127.0.0.1:6000` moves it to another
 port. It has no authentication, so keep it on loopback.
 
+### Debug overlay
+`Ctrl+Shift+D` (also in release builds) shows frame times (p50 / p99 / max of the last 600
+frames), rows drawn, the time from opening a file to the first tree rows and the tree size.
+Its "Expand everything (no limit)" button is for frame-time tests on big files.
+
 ### Where the app keeps its files
 - Settings and recent files: `~/Library/Application Support/io.github.martinhar.braceray/settings.json`
   (macOS), `%APPDATA%\martinhar\braceray\config\settings.json` (Windows),

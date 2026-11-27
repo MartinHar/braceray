@@ -17,8 +17,17 @@ pub const SHORTCUTS: &[(&str, &str, bool)] = &[
     ("Mod+L", "Go to line", false),
     ("Mod+Shift+C", "Copy path", false),
     ("Mod+B", "Bookmark", false),
-    ("← / →", "Collapse / expand", false),
-    ("↑ / ↓", "Move selection", false),
+    (
+        "← / →",
+        "Collapse (or go to parent) / expand (or go to first child)",
+        true,
+    ),
+    ("↑ / ↓", "Move selection", true),
+    ("Home / End", "First / last row", true),
+    ("PageUp / PageDown", "Move one page", true),
+    ("Enter", "Expand / collapse", true),
+    ("*", "Expand the selection and its children", true),
+    ("Ctrl+Shift+D", "Debug overlay (frame times)", true),
 ];
 
 /// Draws the dialog when `open`.

@@ -5,6 +5,7 @@ pub mod format;
 pub mod settings;
 pub mod tab;
 pub mod theme;
+pub mod tree_view;
 pub mod ui;
 
 pub use app::{AppConfig, BracerayApp, DROP_HINT};

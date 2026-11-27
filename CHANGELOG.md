@@ -31,5 +31,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `braceray_core::job::{JobHandle, JobEvent, Repaint}`: background jobs with partial results, progress, cancellation and a repaint callback.
 - Index cache (`braceray_core::cache`), on by default: the second open of a file loads its index from the OS cache dir (2 GB file: 14 ms instead of ~1–3 s). Stale, corrupted or old-format entries are detected, deleted and rebuilt. Entries are written in the background with temp file + atomic rename (safe with several app instances), and least-recently-used entries are evicted beyond 4 GiB. Settings: on/off, max size, minimum file size (20 MiB); `clear_index_cache()`.
 
+- Tree view: a virtualized tree of the whole document that scrolls smoothly at any size (10 M rows: frames under 1.2 ms). Rows show `key : value` with type colours (keys cyan, strings green, numbers blue, `true`/`false`/`null` purple), child counts (`{12}`, `[3,401]`), a type badge and a size badge for values over 1 MB. Strings are cut at 120 characters; Unicode (Armenian, Cyrillic, CJK, emoji) renders through the system fonts, and invalid UTF-8 shows as `�`.
+- Huge arrays and objects are grouped: `[0 … 999]`, `[1,000 … 1,999]`, … (nested above 1,000,000 children; group size in Settings). Expanding a 2.45 M-element root is instant; opening a group deep inside it reads children in the background ("loading…").
+- Preview while indexing: the tree of the first 4 MB appears within ~150 ms of opening a 2 GB file ("Preview: indexing… 37 %"), then switches to the full index keeping what was expanded and selected.
+- Tree keyboard: ↑/↓, ← (collapse or go to parent), → (expand or go to first child), Home/End, PageUp/PageDown, Enter (toggle), `*` (expand the selection and its children, asks before adding more than 10,000 rows). Click selects, the triangle or a double click toggles.
+- Tree context menu: Expand / Collapse, Expand all below (asks every 10,000 rows), Copy key, Copy value (up to 16 MB); "Copy path" and "Show in raw view" are shown disabled until their steps.
+- Debug overlay (`Ctrl+Shift+D`): frame times (p50 / p99 / max), rows drawn, time to first rows, tree size.
+- `braceray_core::tree` (row model, preview index) and `nav::NavCache` (navigation cache shared with background jobs, non-blocking `children_if_ready` / `child_count_if_ready`, cancellable `prepare`).
+
+### Changed
+- Reading children of huge containers is ~2.7× faster (galloping node lookup), and repeated reads near the last position no longer re-parse from the previous checkpoint.
+- The "Indexed 2.15 GB in 3.2 s · N nodes" summary moved from the content area (now the tree) to the hover text of the status bar's index part.
+
 ### Fixed
 - Recent files store the canonical absolute path, so a file opened as `./a.json` and as `/full/path/a.json` no longer shows up twice, and a relative command-line path keeps working when the app is started from another folder.

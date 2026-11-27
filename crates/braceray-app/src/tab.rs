@@ -8,9 +8,11 @@ use std::time::{Duration, Instant};
 use braceray_core::cache::{IndexCache, IndexSource, LoadedIndex, load_or_build};
 use braceray_core::index::IndexOptions;
 use braceray_core::job::{JobEvent, JobHandle, Repaint};
+use braceray_core::tree::preview::{PREVIEW_BYTES, Preview};
 use braceray_core::{Document, Error, Validation};
 
 use crate::format;
+use crate::tree_view::{Source, TreeView};
 
 /// How often the file is checked for changes on disk.
 pub const CHANGE_CHECK_EVERY: Duration = Duration::from_secs(5);
@@ -89,6 +91,8 @@ pub struct OpenEnv {
     /// Test hook: while set, the job waits after mapping the file (so tests can see the
     /// indexing state and cancel it).
     pub hold: Option<Arc<AtomicBool>>,
+    /// Children per group row in the tree.
+    pub group_size: u64,
 }
 
 impl std::fmt::Debug for OpenEnv {
@@ -116,8 +120,17 @@ pub struct OpenDocument {
     pub banner: Option<Banner>,
     /// The user chose "Open anyway" on an invalid file.
     pub browse_invalid: bool,
-    /// Selected byte offset (set by the tree from step 07), for line:col in the status bar.
+    /// Start of the selected value, for line:col in the status bar.
     pub selection: Option<u64>,
+    /// The tree (over the preview while indexing, then over the full index).
+    pub tree: Option<TreeView>,
+    /// When the file was opened (or reloaded).
+    pub opened: Instant,
+    /// Time from opening to the first frame with tree rows.
+    pub first_rows: Option<Duration>,
+    group_size: u64,
+    preview_job: Option<JobHandle<(), Arc<Preview>>>,
+    preview_started: bool,
     job: Option<OpenJob>,
     change_check: Option<JobHandle<(), bool>>,
     last_change_check: Instant,
@@ -139,6 +152,12 @@ impl OpenDocument {
             banner: None,
             browse_invalid: false,
             selection: None,
+            tree: None,
+            opened: Instant::now(),
+            first_rows: None,
+            group_size: env.group_size,
+            preview_job: None,
+            preview_started: false,
             job: None,
             change_check: None,
             last_change_check: Instant::now(),
@@ -153,7 +172,13 @@ impl OpenDocument {
         self.banner = None;
         self.browse_invalid = false;
         self.selection = None;
+        self.tree = None;
+        self.opened = Instant::now();
+        self.first_rows = None;
+        self.preview_job = None;
+        self.preview_started = false;
         self.change_check = None;
+        self.group_size = env.group_size;
         self.start(env);
     }
 
@@ -162,6 +187,7 @@ impl OpenDocument {
             cache,
             repaint,
             hold,
+            group_size: _,
         } = env;
         let path = self.path.clone();
         self.job = Some(JobHandle::spawn("open-index", 0, repaint, move |ctx| {
@@ -183,12 +209,17 @@ impl OpenDocument {
     }
 
     /// Polls the jobs (call every frame; never blocks).
-    pub fn poll(&mut self) {
+    pub fn poll(&mut self, repaint: &Repaint) {
         while let Some(event) = self.job.as_mut().and_then(|j| j.try_recv()) {
-            self.apply(event);
+            self.apply(event, repaint);
         }
         if self.job.as_ref().is_some_and(|j| j.is_finished()) {
             self.job = None;
+        }
+        self.poll_preview(repaint);
+        if let Some(tree) = &mut self.tree {
+            tree.poll(repaint);
+            self.selection = tree.selected_spans().map(|(_, value)| value.start);
         }
         if let Some(changed) = self.change_check.as_mut().and_then(|j| j.try_recv()) {
             self.change_check = None;
@@ -202,7 +233,52 @@ impl OpenDocument {
         }
     }
 
-    fn apply(&mut self, event: JobEvent<Arc<Document>, LoadedIndex>) {
+    /// While indexing, builds the preview on a worker and shows it once ready.
+    fn poll_preview(&mut self, repaint: &Repaint) {
+        let TabState::Indexing { doc, .. } = &self.state else {
+            self.preview_job = None;
+            return;
+        };
+        if !self.preview_started {
+            self.preview_started = true;
+            let doc = Arc::clone(doc);
+            self.preview_job = Some(JobHandle::spawn(
+                "preview",
+                0,
+                repaint.clone(),
+                move |ctx| {
+                    Ok(Arc::new(Preview::build(
+                        doc.bytes(),
+                        PREVIEW_BYTES,
+                        ctx.cancel(),
+                    )?))
+                },
+            ));
+        }
+        if let Some(JobEvent::Done(preview)) = self.preview_job.as_mut().and_then(|j| j.try_recv())
+        {
+            self.preview_job = None;
+            if self.tree.is_none() {
+                let doc = Arc::clone(doc);
+                self.tree = Some(TreeView::new(
+                    doc,
+                    Source::Preview(preview),
+                    self.group_size,
+                    repaint,
+                ));
+            }
+        }
+    }
+
+    /// Re-groups the tree rows (the group-size setting changed).
+    pub fn set_group_size(&mut self, group_size: u64, repaint: &Repaint) {
+        self.group_size = group_size;
+        if let Some(tree) = &mut self.tree {
+            tree.set_group_size(group_size, repaint);
+        }
+    }
+
+    fn apply(&mut self, event: JobEvent<Arc<Document>, LoadedIndex>, repaint: &Repaint) {
         match event {
             JobEvent::Partial(doc) => {
                 self.state = TabState::Indexing {
@@ -230,15 +306,33 @@ impl OpenDocument {
                         ),
                     });
                 }
+                let index = Arc::clone(&loaded.index);
+                match &mut self.tree {
+                    Some(tree) => tree.switch_to_full(index, repaint),
+                    None => {
+                        let source = Source::Full(index);
+                        self.tree = Some(TreeView::new(
+                            Arc::clone(&doc),
+                            source,
+                            self.group_size,
+                            repaint,
+                        ));
+                    }
+                }
+                self.preview_job = None;
                 self.state = TabState::Ready { doc, loaded };
             }
             JobEvent::Failed(e) => {
+                self.tree = None;
                 self.state = TabState::Failed {
                     message: e.to_string(),
                     details: error_details(&self.path, &e),
                 };
             }
-            JobEvent::Cancelled => self.state = TabState::Cancelled,
+            JobEvent::Cancelled => {
+                self.tree = None;
+                self.state = TabState::Cancelled;
+            }
         }
     }
 

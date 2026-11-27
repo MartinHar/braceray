@@ -12,6 +12,9 @@ use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
 use crate::settings::{Settings, SettingsStore};
 use crate::tab::{OpenDocument, OpenEnv, canonical_key};
 use crate::theme;
+
+mod actions;
+use crate::ui::debug_overlay::{self, FrameStats};
 use crate::ui::settings_window::CacheInfo;
 use crate::ui::{self, Action};
 
@@ -73,6 +76,9 @@ pub struct BracerayApp {
     repaint: Option<Repaint>,
     theme_applied: Option<crate::settings::ThemeChoice>,
     focused: bool,
+    /// Frame times for the debug overlay.
+    pub frame_stats: FrameStats,
+    cpu_usage: Option<f32>,
 }
 
 impl Default for BracerayApp {
@@ -117,6 +123,8 @@ impl BracerayApp {
             repaint: None,
             theme_applied: None,
             focused: true,
+            frame_stats: FrameStats::default(),
+            cpu_usage: None,
         }
     }
 
@@ -150,8 +158,10 @@ impl BracerayApp {
 
     /// Draws the whole app into `ui`. Shared by the real window and UI tests.
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        let started = Instant::now();
         let ctx = ui.ctx().clone();
         self.frame_start(&ctx);
+        let repaint = self.repaint();
         let mut actions = Vec::new();
 
         egui::Panel::top("toolbar")
@@ -168,15 +178,30 @@ impl BracerayApp {
             .show(ui, |ui| {
                 ui::status::show(ui, self.active_tab(), self.memory)
             });
-        egui::CentralPanel::default().show(ui, |ui| match self.tabs.get(self.active) {
-            Some(tab) => ui::body::show(ui, self.active, tab, &mut actions),
-            None => ui::empty::show(
-                ui,
-                &self.settings.recent_files,
-                &self.missing_recent,
-                &mut actions,
-            ),
-        });
+        let active = self.active;
+        let rows_drawn = egui::CentralPanel::default()
+            .show(ui, |ui| match self.tabs.get_mut(active) {
+                Some(tab) => ui::body::show(ui, active, tab, &repaint, &mut actions),
+                None => {
+                    ui::empty::show(
+                        ui,
+                        &self.settings.recent_files,
+                        &self.missing_recent,
+                        &mut actions,
+                    );
+                    0
+                }
+            })
+            .inner;
+        self.frame_stats.rows_drawn = rows_drawn;
+        let extra = self.debug_lines();
+        if debug_overlay::show(&ctx, &mut self.frame_stats, &extra)
+            && let Some(tree) = self.tabs.get_mut(active).and_then(|t| t.tree.as_mut())
+        {
+            let started = Instant::now();
+            tree.expand_all_with(0, u32::MAX, u64::MAX, &repaint);
+            tracing::info!("expand everything: {:?}", started.elapsed());
+        }
 
         let mut open = self.show_settings;
         ui::settings_window::show(
@@ -201,6 +226,55 @@ impl BracerayApp {
         if self.is_busy() || self.dialog.is_some() {
             ctx.request_repaint_after(PROGRESS_REPAINT);
         }
+        let cpu_ms = self.cpu_usage.take().map(|s| s * 1000.0);
+        self.frame_stats
+            .record(started.elapsed().as_secs_f32() * 1000.0, cpu_ms);
+        if self.frame_stats.open {
+            // Keep measuring while the overlay is open.
+            ctx.request_repaint_after(Duration::from_millis(250));
+        }
+    }
+
+    /// Tree numbers for the debug overlay (only computed while it is open).
+    fn debug_lines(&self) -> Vec<String> {
+        if !self.frame_stats.open {
+            return Vec::new();
+        }
+        let Some(tab) = self.active_tab() else {
+            return vec!["No tree".to_owned()];
+        };
+        let Some(tree) = tab.tree.as_ref() else {
+            return vec!["No tree".to_owned()];
+        };
+        let ms = |d: Option<Duration>| {
+            d.map_or("–".to_owned(), |d| {
+                format!("{:.2} ms", d.as_secs_f64() * 1000.0)
+            })
+        };
+        vec![
+            format!("First rows after open: {}", ms(tab.first_rows)),
+            format!(
+                "Last expand: {} · last prepare: {}",
+                ms(tree.timings.expand),
+                ms(tree.timings.prepare)
+            ),
+            format!(
+                "Tree rows: {} · segments: {}",
+                crate::format::group_digits(tree.model.row_count()),
+                tree.model.segment_count()
+            ),
+            format!(
+                "Checkpoint cache: {} · jobs: {}{}",
+                crate::format::bytes(tree.cache_bytes() as u64),
+                tree.jobs_running(),
+                if tree.is_preview() { " · preview" } else { "" }
+            ),
+        ]
+    }
+
+    /// The full CPU time of the previous frame, from eframe (shown in the debug overlay).
+    pub fn set_cpu_usage(&mut self, seconds: Option<f32>) {
+        self.cpu_usage = seconds;
     }
 
     fn frame_start(&mut self, ctx: &egui::Context) {
@@ -236,7 +310,7 @@ impl BracerayApp {
         self.focused = focused;
         let repaint = self.repaint();
         for tab in &mut self.tabs {
-            tab.poll();
+            tab.poll(&repaint);
             tab.maybe_check_changed(gained_focus, repaint.clone());
         }
         // Wake up for the next change check even when nothing else happens.
@@ -273,6 +347,7 @@ impl BracerayApp {
             cache: self.index_cache(),
             repaint: self.repaint(),
             hold: self.hold_indexing.clone(),
+            group_size: self.settings.tree_group_size,
         }
     }
 
@@ -327,7 +402,14 @@ impl BracerayApp {
     fn keyboard(&mut self, ctx: &egui::Context, actions: &mut Vec<Action>) {
         let open = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
         let close = KeyboardShortcut::new(Modifiers::COMMAND, Key::W);
+        let debug = [
+            KeyboardShortcut::new(Modifiers::CTRL | Modifiers::SHIFT, Key::D),
+            KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::D),
+        ];
         ctx.input_mut(|i| {
+            if debug.iter().any(|d| i.consume_shortcut(d)) {
+                self.frame_stats.open = !self.frame_stats.open;
+            }
             if i.consume_shortcut(&open) {
                 actions.push(Action::OpenDialog);
             }
@@ -385,116 +467,11 @@ impl BracerayApp {
             );
         }
     }
-
-    fn apply(&mut self, ctx: &egui::Context, action: Action) {
-        match action {
-            Action::OpenDialog => self.open_dialog(),
-            Action::Open(path) => self.open_now(&path),
-            Action::Focus(i) if i < self.tabs.len() => self.active = i,
-            Action::Close(i) if i < self.tabs.len() => {
-                // Dropping the tab drops its job handle, which cancels the job.
-                self.tabs.remove(i);
-                if self.active > i || self.active >= self.tabs.len() {
-                    self.active = self.active.saturating_sub(1);
-                }
-                if self.tabs.is_empty() {
-                    self.refresh_recent();
-                }
-            }
-            Action::Cancel(i) => {
-                if let Some(t) = self.tabs.get_mut(i) {
-                    t.cancel();
-                }
-            }
-            Action::Reload(i) => {
-                let env = self.open_env();
-                if let Some(t) = self.tabs.get_mut(i) {
-                    t.reload(env);
-                }
-            }
-            Action::DismissBanner(i) => {
-                if let Some(t) = self.tabs.get_mut(i) {
-                    t.banner = None;
-                    t.browse_invalid = true;
-                }
-            }
-            Action::OpenAnyway(i) => {
-                if let Some(t) = self.tabs.get_mut(i) {
-                    t.browse_invalid = true;
-                }
-            }
-            Action::Copy(text) => ctx.copy_text(text),
-            Action::RemoveRecent(path) => {
-                self.settings.remove_recent(&path);
-                self.missing_recent.remove(&path);
-                self.store.save(&self.settings);
-            }
-            Action::ClearRecent => {
-                self.settings.recent_files.clear();
-                self.missing_recent.clear();
-                self.store.save(&self.settings);
-            }
-            Action::SettingsChanged => {
-                self.settings.validate();
-                self.store.save(&self.settings);
-            }
-            Action::ClearCache => {
-                if let Some(cache) = self.index_cache() {
-                    self.cache_info = CacheInfo::Busy;
-                    self.cache_job = Some(JobHandle::spawn(
-                        "cache-clear",
-                        0,
-                        self.repaint(),
-                        move |_| {
-                            if let Err(e) = cache.clear() {
-                                tracing::warn!("index cache: clear failed: {e}");
-                            }
-                            Ok(cache.total_bytes())
-                        },
-                    ));
-                }
-            }
-            Action::ToggleSettings => {
-                self.show_settings = !self.show_settings;
-                if self.show_settings {
-                    self.refresh_cache_size();
-                }
-            }
-            Action::ToggleShortcuts => self.show_shortcuts = !self.show_shortcuts,
-            Action::Focus(_) | Action::Close(_) => {}
-        }
-    }
-
-    /// Shows the native file dialog without blocking rendering: the dialog is created on
-    /// the UI thread (macOS needs that) and awaited on a worker.
-    fn open_dialog(&mut self) {
-        if self.dialog.is_some() {
-            return;
-        }
-        let future = rfd::AsyncFileDialog::new()
-            .set_title("Open JSON file")
-            .add_filter("JSON", &["json"])
-            .add_filter("NDJSON", &["ndjson", "jsonl"])
-            .add_filter("All files", &["*"])
-            .pick_files();
-        let (tx, rx) = mpsc::channel();
-        let repaint = self.repaint();
-        let spawned = std::thread::Builder::new()
-            .name("file-dialog".to_owned())
-            .spawn(move || {
-                let files = pollster::block_on(future).unwrap_or_default();
-                let _ = tx.send(files.into_iter().map(|f| f.path().to_path_buf()).collect());
-                repaint();
-            });
-        match spawned {
-            Ok(_) => self.dialog = Some(rx),
-            Err(e) => tracing::warn!("can't start the file dialog thread: {e}"),
-        }
-    }
 }
 
 impl eframe::App for BracerayApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.set_cpu_usage(frame.info().cpu_usage);
         self.show(ui);
     }
 

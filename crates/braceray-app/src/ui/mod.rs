@@ -3,11 +3,14 @@
 
 pub mod banner;
 pub mod body;
+pub mod debug_overlay;
 pub mod empty;
 pub mod settings_window;
 pub mod shortcuts;
 pub mod status;
 pub mod toolbar;
+pub mod tree;
+pub mod tree_row;
 
 use std::path::PathBuf;
 

@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use braceray_app::settings::{Settings, SettingsStore, ThemeChoice};
 use braceray_app::tab::TabState;
+use braceray_app::ui::body::PREVIEW_LABEL;
 use braceray_app::{AppConfig, BracerayApp, DROP_HINT};
 use eframe::egui;
 use egui_kittest::Harness;
@@ -103,11 +104,20 @@ fn open_shows_progress_then_done_and_cancel_works() {
             .first()
             .is_some_and(|t| matches!(t.state, TabState::Indexing { .. }))
     });
-    h.get_by_label("orders_16k.json");
-    h.get_by_label_contains("Indexing…");
+    assert!(h.query_all_by_label_contains("orders_16k.json").count() >= 1);
+    // While indexing, the preview tree shows the first rows.
+    step_until(&mut h, "preview", |a| {
+        a.tabs[0].tree.as_ref().is_some_and(|t| t.is_preview())
+    });
+    h.run_steps(2);
+    h.get_by_label_contains(PREVIEW_LABEL);
+    h.get_by_label_contains("root : [");
     hold.store(false, Ordering::Relaxed);
-    step_until(&mut h, "index", all_ready);
-    h.get_by_label_contains("Indexed 16.");
+    step_until(&mut h, "index", |a| {
+        all_ready(a) && a.tabs[0].tree.as_ref().is_some_and(|t| !t.is_preview())
+    });
+    h.run_steps(2);
+    assert!(h.query_by_label_contains(PREVIEW_LABEL).is_none());
     h.get_by_label_contains("Index: built");
 
     // A second file, held in the indexing state, then cancelled.
@@ -366,7 +376,8 @@ fn drag_and_drop_opens_files() {
     h.run_steps(1);
     step_until(&mut h, "dropped file", all_ready);
     assert_eq!(h.state().tabs[0].path, a);
-    h.get_by_label_contains("Indexed 13 B");
+    h.run_steps(2);
+    h.get_by_label("root : {1}");
 }
 
 #[test]
