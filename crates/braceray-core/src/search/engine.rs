@@ -9,8 +9,9 @@ use crate::error::Error;
 
 /// The finder chosen for a query.
 enum Finder {
-    /// Case-sensitive literal (or a literal without ASCII letters).
-    Exact(memmem::Finder<'static>),
+    /// Case-sensitive literal (or a literal without ASCII letters). Boxed: on x86 the
+    /// finder holds ~288 bytes of SIMD searcher state.
+    Exact(Box<memmem::Finder<'static>>),
     /// ASCII query, ASCII case-insensitive.
     AsciiCi(AhoCorasick),
     /// Non-ASCII query, Unicode case-insensitive (simple case folding).
@@ -45,7 +46,7 @@ impl Engine {
         let has_ascii_letters = needle.iter().any(u8::is_ascii_alphabetic);
         let (finder, max_len) = if case_sensitive || (text.is_ascii() && !has_ascii_letters) {
             let finder = memmem::Finder::new(needle).into_owned();
-            (Finder::Exact(finder), needle.len())
+            (Finder::Exact(Box::new(finder)), needle.len())
         } else if text.is_ascii() {
             let ac = AhoCorasick::builder()
                 .ascii_case_insensitive(true)
