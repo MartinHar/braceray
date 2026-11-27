@@ -11,10 +11,10 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 06 — App shell |
-| **Status** | 🟦 In progress (code complete, gates green) |
-| **Current sub-task** | Manual acceptance checks (3 left for Martin) |
-| **Next action** | Martin: drag the window during 2 GB indexing, click through Open file… / Cmd+O, switch macOS appearance with Theme = System; then mark step 06 ✅ |
+| **Current step** | 07 — Tree view |
+| **Status** | ⬜ Not started |
+| **Current sub-task** | — |
+| **Next action** | Start step 07 (tree view) |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -36,7 +36,7 @@
 | 03 | File loading (mmap) | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
 | 04 | Structural index & validation | MVP | ✅ | 2026-11-25 | 2026-11-25 | eac9cbd, 1c02d57, 16b7adc, 4d commit |
 | 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | bbc18fb |
-| 06 | App shell | MVP | 🟦 | 2026-11-27 | | |
+| 06 | App shell | MVP | ✅ | 2026-11-27 | 2026-11-27 | eccc3e5, 509580d |
 | 07 | Tree view | MVP | ⬜ | | | |
 | 08 | Raw text view | MVP | ⬜ | | | |
 | 09 | Search engine (core) | MVP | ⬜ | | | |
@@ -50,7 +50,7 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 5 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 6 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
 
 ### MVP time estimate (made 2026-11-25, after step 01)
 About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
@@ -341,7 +341,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 014: cache dir computed with std instead of `directories` (MPL-2.0 dependency); confirmed by Martin.
 
 ### Step 06 — App shell
-**Status:** 🟦 In progress (code done, all gates green; waiting for Martin's manual checks) · **Started:** 2026-11-27 · **Finished:** —
+**Status:** ✅ Done · **Started:** 2026-11-27 · **Finished:** 2026-11-27
 
 **Plan**
 - [x] Core `job.rs`: `JobHandle<P, T>`, `JobEvent<P, T>`, `JobContext`, `Repaint` callback, `JobHandle::spawn` (dedicated thread); unit tests (done, partial, failed, cancel, late result after cancel, panic, drop cancels, repaint count) + doctest
@@ -355,14 +355,14 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [x] Manual run of the release app with the 2 GB fixture (progress, speed, ETA, "Indexed …", "from cache"); docs (CHANGELOG, DECISIONS 015–017, PERF, THIRD_PARTY_LICENSES, README)
 - [x] egui_mcp drive-through (open via Recent, status bar, Cancel, resize latency probe)
 - [x] Fix found while driving: recent files stored non-canonical paths (duplicate `orders_2g.json`, relative `fixtures-data/…` entry); now the canonical path + kittest `recent_files_store_one_canonical_path_per_file`; README `egui-mcp` command fixed
-- [ ] Martin: manual checks listed under the acceptance criteria below
+- [x] Martin: manual checks listed under the acceptance criteria below (2026-11-27: all OK)
 
 **Acceptance criteria** (copied from the step file)
-- [ ] Opening the 2 GB fixture: the window stays responsive the whole time (drag the window and resize during indexing, no stutter); progress updates smoothly; Cancel works. — *Verified via egui-mcp: resize round trips during a 2 GB build (opt-level 3 build with the inspection plugin) median 2.7 ms, p95 13.8 ms over 896 resizes (idle baseline 16.6 ms median); progress label advanced smoothly 4 % → 100 %; Cancel clicked through the UI → "Indexing cancelled", memory back to 78 MB; closing a ready 2 GB tab ≈ 15 ms. One 1.0 s outlier in the first run, not reproduced in two more runs (likely window start-up). Unoptimized debug build: 94 ms median while the debug builder saturates all cores, expected. Not verified: a physical window drag; please check.*
-- [ ] Drag & drop, dialog, CLI arg and recent files all open files. — *CLI verified in the real app; drag & drop (injected drop event) and recent files in kittest. The native dialog was not clicked through; please check Open file… / Cmd+O.*
+- [x] Opening the 2 GB fixture: the window stays responsive the whole time (drag the window and resize during indexing, no stutter); progress updates smoothly; Cancel works. — *Verified via egui-mcp: resize round trips during a 2 GB build (opt-level 3 build with the inspection plugin) median 2.7 ms, p95 13.8 ms over 896 resizes (idle baseline 16.6 ms median); progress label advanced smoothly 4 % → 100 %; Cancel clicked through the UI → "Indexing cancelled", memory back to 78 MB; closing a ready 2 GB tab ≈ 15 ms. One 1.0 s outlier in the first run, not reproduced in two more runs (likely window start-up). Unoptimized debug build: 94 ms median while the debug builder saturates all cores, expected. Physical window drag during indexing checked by Martin: OK.*
+- [x] Drag & drop, dialog, CLI arg and recent files all open files. — *CLI verified in the real app; drag & drop (injected drop event) and recent files in kittest. Native dialog (Open file… / Cmd+O) checked by Martin: OK.*
 - [x] Opening a second file opens a tab; switching tabs is instant. (`tabs_open_switch_dedup_and_close`; switching only changes an index, no work)
 - [x] Invalid JSON shows the banner with line/column; UTF-16 and empty files show their friendly messages. (`invalid_json_shows_banner_with_position`, `friendly_messages_for_unreadable_files`)
-- [ ] Theme switch is instant and persisted; "System" follows the OS. — *Instant + persisted verified (`theme_switch_is_instant_and_persisted`). "System" uses egui's `ThemePreference::System` (OS theme from winit); not checked by switching the macOS appearance.*
+- [x] Theme switch is instant and persisted; "System" follows the OS. — *Instant + persisted verified (`theme_switch_is_instant_and_persisted`). "System" uses egui's `ThemePreference::System` (OS theme from winit); Martin switched the macOS appearance with Theme = System: OK.*
 - [x] Settings persist across restarts; the cache toggle really disables cache writes. (`settings_round_trip_through_the_window`, `reopen_shows_from_cache_and_disabled_cache_writes_nothing`)
 - [x] Reopening a cached file shows "from cache" in the status bar. (kittest + release app: "Index: from cache (0.04 s)" for the 2 GB fixture)
 - [x] Debug build can be driven via egui_mcp (Claude Code: open a fixture through the UI and read the status bar). — *Driven with `egui-mcp` over stdio: attach → click `orders_16k.json` in Recent files → `wait_for "Indexed"` → status bar read: "16.8 KB · Index: built (0.00 s) · Memory 113 MB". Also clicked Settings, Cancel, Cmd+W, resize.*
@@ -405,7 +405,8 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Did: drove the debug app with `egui-mcp` (Martin installed it) over stdio JSON-RPC: opened a fixture via Recent files and read the status bar (egui_mcp criterion ✅); resize-latency probe during 2 GB indexing (median 2.7 ms / p95 13.8 ms optimized); Cancel through the UI. Fixed recent files storing non-canonical paths (duplicates); README `egui-mcp` command.
 - Tests: 145 passed, 0 failed, 5 ignored · fmt/clippy/deny clean
 - Commits: `fix: store canonical paths in recent files` (see git log); not pushed
-- Next: Martin: window drag during indexing, native dialog, System theme; then mark 06 ✅ and start step 07
+- Martin confirmed window drag, native dialog and System theme → step 06 ✅
+- Next: start step 07 (tree view)
 
 ### 2026-11-27 · Step 06
 - Did: step 06 app shell: core job plumbing (`JobHandle<P, T>`), settings + recent files, theme, tabs, open by dialog / drag & drop / CLI / recent, indexing progress with Cancel, error banner, status bar, settings window, shortcuts dialog, change watcher, debug inspection server. 10 kittest tests. Release app checked with the 2 GB fixture (3.2 s build in the app, 0.04 s from cache).
