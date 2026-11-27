@@ -10,6 +10,7 @@ pub mod index;
 pub mod job;
 mod mmap;
 pub mod nav;
+pub mod path;
 pub mod pretty;
 pub mod search;
 pub mod tree;

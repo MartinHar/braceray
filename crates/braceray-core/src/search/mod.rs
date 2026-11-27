@@ -70,7 +70,8 @@ pub struct SearchOptions {
     /// How many matches are kept for [`SearchHandle::get`] (default 5,000,000, ≈ 60 MB).
     /// Beyond it the count stays exact and next / previous scan on demand.
     pub max_stored_results: usize,
-    /// Worker tasks on the rayon pool (default: one per pool thread).
+    /// Worker tasks (default: one per thread of the search pool, which has one thread
+    /// per core and is separate from the global rayon pool the index build uses).
     pub threads: Option<usize>,
 }
 
@@ -100,7 +101,7 @@ impl Match {
     }
 }
 
-/// Starts a search over `bytes` (usually an `Arc<Document>`) on the rayon pool.
+/// Starts a search over `bytes` (usually an `Arc<Document>`) on the search thread pool.
 ///
 /// `repaint` is called whenever more results are published and when the search ends.
 /// Dropping the handle cancels the search. Errors: [`Error::SearchUnsupported`] for regex
@@ -150,7 +151,7 @@ where
         options.max_stored_results,
         repaint,
     ));
-    let workers = options.threads.unwrap_or_else(rayon::current_num_threads);
+    let workers = options.threads.unwrap_or_else(run::default_workers);
     shared.spawn(workers);
     Ok(SearchHandle {
         shared: Some(shared),
@@ -231,6 +232,40 @@ impl SearchHandle {
         self.shared.as_ref()?.prev_before(off)
     }
 
+    /// Matches starting in `start..end`, in order, at most `limit` (for highlighting the
+    /// rows on screen). Stored matches come from the store; beyond the stored cap the
+    /// range is scanned (exact when a chunk's chain start is within 256 KiB before it,
+    /// else from `start`, which is exact unless the needle can overlap itself). Only the
+    /// published part of the file is answered.
+    ///
+    /// # Example
+    /// ```
+    /// use std::sync::Arc;
+    /// use braceray_core::job::no_repaint;
+    /// use braceray_core::search::{start_search, SearchOptions, SearchQuery};
+    ///
+    /// let bytes = Arc::new(b"[\"ab\", \"cab\", \"abc\"]".to_vec());
+    /// let search = start_search(bytes, &SearchQuery::new("ab"), SearchOptions::default(),
+    ///                           no_repaint())?;
+    /// search.wait();
+    /// let offsets: Vec<u64> = search.matches_in(3, 20, 10).iter().map(|m| m.offset).collect();
+    /// assert_eq!(offsets, [9, 15]);
+    /// # Ok::<(), braceray_core::Error>(())
+    /// ```
+    pub fn matches_in(&self, start: u64, end: u64, limit: usize) -> Vec<Match> {
+        self.shared
+            .as_ref()
+            .map_or_else(Vec::new, |s| s.matches_in(start, end, limit))
+    }
+
+    /// A cloneable navigation handle for workers (next / previous beyond the cap). It
+    /// doesn't keep the search running: dropping the [`SearchHandle`] still cancels it.
+    pub fn nav(&self) -> SearchNav {
+        SearchNav {
+            shared: self.shared.clone(),
+        }
+    }
+
     /// Asks the workers to stop (each stops within one chunk or 1024 matches).
     pub fn cancel(&self) {
         if let Some(s) = &self.shared {
@@ -244,6 +279,54 @@ impl SearchHandle {
         if let Some(s) = &self.shared {
             s.wait();
         }
+    }
+}
+
+/// Next / previous over a search's results from any thread (see [`SearchHandle::nav`]).
+#[derive(Clone)]
+pub struct SearchNav {
+    shared: Option<Arc<Shared>>,
+}
+
+impl std::fmt::Debug for SearchNav {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SearchNav").finish_non_exhaustive()
+    }
+}
+
+impl SearchNav {
+    /// See [`SearchHandle::next_after`].
+    pub fn next_after(&self, off: u64) -> Option<Match> {
+        self.shared.as_ref()?.next_after(off)
+    }
+
+    /// See [`SearchHandle::prev_before`].
+    pub fn prev_before(&self, off: u64) -> Option<Match> {
+        self.shared.as_ref()?.prev_before(off)
+    }
+
+    /// See [`SearchHandle::index_of_offset`].
+    pub fn index_of_offset(&self, off: u64) -> Result<usize, usize> {
+        self.shared
+            .as_ref()
+            .map_or(Err(0), |s| s.index_of_offset(off))
+    }
+
+    /// See [`SearchHandle::get`].
+    pub fn get(&self, i: usize) -> Option<Match> {
+        self.shared.as_ref()?.get(i)
+    }
+
+    /// See [`SearchHandle::stored`].
+    pub fn stored(&self) -> usize {
+        self.shared.as_ref().map_or(0, |s| s.stored())
+    }
+
+    /// `true` once the search was cancelled (its handle dropped or a new search began).
+    pub fn is_cancelled(&self) -> bool {
+        self.shared
+            .as_ref()
+            .is_some_and(|s| s.cancel.is_cancelled())
     }
 }
 

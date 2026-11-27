@@ -2,7 +2,7 @@
 //! the stored cap.
 
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
 use crate::job::{CancelToken, Progress, Repaint};
@@ -16,6 +16,30 @@ pub(crate) type Bytes = Arc<dyn AsRef<[u8]> + Send + Sync>;
 
 /// Head entries reserved from the budget at a time.
 const BLOCK: usize = 4096;
+
+/// `matches_in` walks the exact chain from a chunk's chain start only when it is at most
+/// this far before the range; otherwise it starts at the range (see `matches_in`).
+const EXACT_WALK: u64 = 256 << 10;
+
+/// The search's own thread pool (one thread per core), so a search never queues behind
+/// an index build on the global rayon pool. `None` if it can't be created; searches then
+/// use the global pool.
+pub(crate) fn pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .thread_name(|i| format!("search-{i}"))
+            .build()
+            .map_err(|e| tracing::warn!("search pool: {e}; using the global pool"))
+            .ok()
+    })
+    .as_ref()
+}
+
+/// Worker threads a search uses by default.
+pub(crate) fn default_workers() -> usize {
+    pool().map_or_else(rayon::current_num_threads, |p| p.current_num_threads())
+}
 
 /// Everything workers and the handle share.
 pub(crate) struct Shared {
@@ -125,9 +149,13 @@ impl Shared {
             return;
         }
         self.active.store(workers, Ordering::SeqCst);
+        let pool = pool();
         for _ in 0..workers {
             let me = self.clone();
-            rayon::spawn(move || me.work());
+            match pool {
+                Some(p) => p.spawn(move || me.work()),
+                None => rayon::spawn(move || me.work()),
+            }
         }
     }
 
@@ -352,5 +380,49 @@ impl Shared {
             }
         }
         stored_prev
+    }
+
+    pub(crate) fn matches_in(&self, start: u64, end: u64, limit: usize) -> Vec<Match> {
+        let mut out = Vec::new();
+        let beyond = {
+            let store = self.read();
+            let i = store.offsets.partition_point(|&o| o < start);
+            for j in i..store.offsets.len() {
+                if store.offsets[j] >= end || out.len() >= limit {
+                    return out;
+                }
+                out.push(Match {
+                    offset: store.offsets[j],
+                    len: store.lens[j],
+                });
+            }
+            if !store.capped {
+                return out;
+            }
+            // Unstored matches may follow the last stored one.
+            store.offsets.last().map_or(0, |&o| o + 1).max(start)
+        };
+        if beyond >= end {
+            return out;
+        }
+        let k = (beyond / self.chunk_size) as usize;
+        let Some(chain) = self.chain_start(k) else {
+            return out; // not published yet
+        };
+        // The exact chain when its start is near; otherwise start at the range (exact
+        // for needles that can't overlap themselves, which is fine for highlighting).
+        let back = (self.engine.max_len() as u64).saturating_sub(1);
+        let from = if beyond.saturating_sub(chain) <= EXACT_WALK {
+            chain.min(beyond)
+        } else {
+            beyond.saturating_sub(back)
+        };
+        let _ = self.scanner().walk(from, end, |m| {
+            if m.offset >= beyond {
+                out.push(m);
+            }
+            out.len() < limit
+        });
+        out
     }
 }
