@@ -34,7 +34,7 @@
 | 02 | Test fixture generator | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
 | 03 | File loading (mmap) | MVP | ✅ | 2026-11-25 | 2026-11-25 | (see git log) |
 | 04 | Structural index & validation | MVP | ✅ | 2026-11-25 | 2026-11-25 | eac9cbd, 1c02d57, 16b7adc, 4d commit |
-| 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | step 05 commit (see git log) |
+| 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | bbc18fb |
 | 06 | App shell | MVP | ⬜ | | | |
 | 07 | Tree view | MVP | ⬜ | | | |
 | 08 | Raw text view | MVP | ⬜ | | | |
@@ -355,7 +355,7 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 ### 2026-11-27 · Step 05
 - Did: step 05 index cache end to end (`cache/` module, zero-copy `NodeStore`, tests, 2 GB re-open test, criterion bench). Dropped `directories` (MPL-2.0 dependency, question for Martin). Found that the `scalar_index` bench depends on code layout: the identical source runs at 139 ms or 280 ms depending on the build dir (I-005).
 - Tests: 120 passed, 0 failed, 5 ignored (pass with `--ignored`) · fmt/clippy/deny clean · 2 GB re-open from cache 14 ms
-- Commits: step 05 commit (see git log); not pushed
+- Commits: bbc18fb; not pushed (4 commits of step 04 also unpushed)
 - Next: Martin reviews step 05; then step 06 (app shell)
 
 ### 2026-11-25 23:50 · Step 03 / 04
