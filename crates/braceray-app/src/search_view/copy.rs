@@ -145,7 +145,8 @@ impl CopyPaths {
 
 /// Creates a new, empty `braceray-paths-….txt` in the temp dir. `create_new` (O_EXCL)
 /// refuses an existing path or symlink, so a file planted in a shared temp dir can't be
-/// overwritten through us; on a clash the next name is tried.
+/// overwritten through us; on a clash the next name is tried. On Unix the file is
+/// readable by its owner only (0600); Windows' temp dir is per user.
 fn create_temp_file() -> Result<(PathBuf, std::fs::File), String> {
     let dir = std::env::temp_dir();
     let stamp = std::time::SystemTime::now()
@@ -157,11 +158,12 @@ fn create_temp_file() -> Result<(PathBuf, std::fs::File), String> {
             "braceray-paths-{}-{stamp}-{n}.txt",
             std::process::id()
         ));
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        // Owner-only: the paths reveal key names of the user's file.
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        match options.open(&path) {
             Ok(f) => return Ok((path, f)),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
                 last = format!("{}: {e}", path.display());
@@ -182,6 +184,12 @@ mod tests {
         let (b, _fb) = create_temp_file().unwrap();
         assert_ne!(a, b);
         assert!(a.exists() && b.exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = std::fs::metadata(&a).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
         let _ = std::fs::remove_file(a);
         let _ = std::fs::remove_file(b);
     }

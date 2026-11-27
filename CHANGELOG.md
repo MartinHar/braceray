@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The "Indexed 2.15 GB in 3.2 s · N nodes" summary moved from the content area (now the tree) to the hover text of the status bar's index part.
 
 ### Fixed
-- "Copy all paths" creates its temp file with `create_new` (O_EXCL), so an existing file or a symlink planted in a shared temp dir is never overwritten.
+- "Copy all paths" creates its temp file with `create_new` (O_EXCL), so an existing file or a symlink planted in a shared temp dir is never overwritten, and on Unix with mode 0600 so other users can't read it.
 - The status bar's line:col no longer scans back to the start of the line every frame: on a 2 GB single-line file it shows the column in bytes ("Ln 1, Byte 1,158,735,112") past the first 1 MB of a line.
 - Selecting a 200 MB string in the tree no longer re-reads it every frame (the selection's spans are cached), which made the app unresponsive.
 - Recent files store the canonical absolute path, so a file opened as `./a.json` and as `/full/path/a.json` no longer shows up twice, and a relative command-line path keeps working when the app is started from another folder.
