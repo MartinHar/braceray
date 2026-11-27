@@ -14,7 +14,7 @@
 | **Current step** | 06 — App shell |
 | **Status** | ⬜ Not started (step 05 ✅) |
 | **Current sub-task** | — |
-| **Next action** | Martin reviews step 05 and answers the `directories` / MPL-2.0 question; then start step 06 |
+| **Next action** | Start step 06 (app shell) |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -22,7 +22,7 @@
 
 ## Blockers / questions for Martin
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
-- [ ] 2026-11-27 · Step 05 · `directories` (fixed stack) depends on `option-ext`, which is **MPL-2.0** and not on the license allow-list, so `cargo deny` fails. I replaced it with a std-only lookup of the same cache dir (ADR 014). Not blocking · Decide: allow MPL-2.0 for `option-ext` and use `directories`, or keep the std version (it would also be used for the settings dir in step 06)
+- [x] 2026-11-27 · Step 05 · `directories` depends on `option-ext` (MPL-2.0, not on the allow-list) · Resolved: Martin chose to keep the std-only folder lookup (ADR 014); no `directories`, no MPL exception
 <!-- Format: - [ ] YYYY-MM-DD · Step NN · question or blocker · what you need from me -->
 
 ---
@@ -337,7 +337,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 
 **Decisions** (also in docs/DECISIONS.md)
 - 013: cache format, full checksum instead of sampled, zero-copy `NodeStore`, advisory `index.json`.
-- 014: cache dir computed with std instead of `directories` (MPL-2.0 dependency), open question for Martin.
+- 014: cache dir computed with std instead of `directories` (MPL-2.0 dependency); confirmed by Martin.
 
 ---
 

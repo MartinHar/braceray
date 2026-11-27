@@ -6,8 +6,9 @@ Specs live in `docs/specs/`. Always read `docs/specs/overview.md` and `docs/spec
 ## Stack (fixed — do not change without asking)
 - Language: **Rust**, stable toolchain, edition 2024 (or the latest stable edition).
 - UI: **egui / eframe** (latest stable). No webview, no Electron, no Tauri.
-- Core crates: `memmap2`, `memchr`, `rayon`, `regex` (bytes API), `aho-corasick`, `sonic-rs` (only for small subtree parsing), `xxhash-rust` (xxh3), `mimalloc`, `rfd` (file dialogs), `arboard` (clipboard), `directories`, `serde` + `serde_json` (settings only), `thiserror`, `anyhow` (app crate only), `tracing`.
+- Core crates: `memmap2`, `memchr`, `rayon`, `regex` (bytes API), `aho-corasick`, `sonic-rs` (only for small subtree parsing), `xxhash-rust` (xxh3), `mimalloc`, `rfd` (file dialogs), `arboard` (clipboard), `serde` + `serde_json` (settings only), `thiserror`, `anyhow` (app crate only), `tracing`.
 - Test crates: `criterion`, `proptest`, `egui_kittest`, `cargo-fuzz` (fuzz/ dir), `insta` (optional snapshots).
+- **App folders** (cache, settings): computed with std from `HOME` / `LOCALAPPDATA` / `XDG_*` (`IndexCache::default_dir`), not with `directories`: its dependency `option-ext` is MPL-2.0 (ADR 014, Martin's decision).
 - **Versions:** when adding a dependency, use `cargo add <crate>` so you get the latest stable version. Never copy version numbers from memory.
 
 ## License rules
