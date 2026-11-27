@@ -67,6 +67,7 @@ pub fn show(
                         repaint,
                         rows_drawn: &mut rows_drawn,
                         keys: focus == Pane::Tree,
+                        search: Some(&tab.search),
                     };
                     tree::show(ui, view, cx, actions);
                 });
@@ -80,6 +81,7 @@ pub fn show(
                     tab_id,
                     repaint,
                     focused: focus == Pane::Raw,
+                    search: Some(&tab.search),
                 };
                 let out = raw::show(ui, raw_view, view, cx);
                 rows_drawn += out.rows_drawn;

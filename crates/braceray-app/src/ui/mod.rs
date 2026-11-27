@@ -8,12 +8,15 @@ pub mod empty;
 pub mod goto;
 pub mod raw;
 mod raw_input;
+pub mod results;
+pub mod search;
 pub mod settings_window;
 pub mod shortcuts;
 pub mod status;
 pub mod toolbar;
 pub mod tree;
 pub mod tree_row;
+pub mod vlist;
 
 use std::path::PathBuf;
 
@@ -56,6 +59,22 @@ pub enum Action {
     GoTo,
     /// Scroll the raw view to the tree selection.
     ShowInRaw,
+    /// Focus the search field and select its text.
+    FocusSearch,
+    /// Next match from the selection.
+    SearchNext,
+    /// Previous match from the selection.
+    SearchPrev,
+    /// Jump to stored match `n` of the active tab.
+    SearchJump(usize),
+    /// Show or hide the results panel.
+    ToggleResults,
+    /// Esc in an empty search field: hide the results and leave the field.
+    CloseSearch,
+    /// Search for a text from the history.
+    SearchHistory(String),
+    /// Open a file with the system's default app (the "Copy all paths" file).
+    OpenExternal(PathBuf),
 }
 
 /// Sets the accessible name of an icon-only widget (screen readers, kittest, egui_mcp).

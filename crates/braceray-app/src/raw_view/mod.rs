@@ -63,6 +63,8 @@ pub struct RawView {
     pub flash: Option<(Span, Instant)>,
     /// A short message (e.g. the copy limit), shown until the instant.
     pub notice: Option<(String, Instant)>,
+    /// Scroll horizontally so this offset is visible once its row is drawn.
+    pub reveal_x: Option<u64>,
     source_generation: u64,
     len: u64,
     opts: PrettyOptions,
@@ -102,6 +104,7 @@ impl RawView {
             seek: None,
             selection: None,
             flash: None,
+            reveal_x: None,
             notice: None,
             source_generation: tree.source_generation(),
             len: nav.bytes().len() as u64,
@@ -170,6 +173,7 @@ impl RawView {
     /// Shows `span` near the top and highlights it for a moment.
     pub fn reveal(&mut self, tree: &TreeView, span: Span, repaint: &Repaint) {
         self.flash = Some((span, Instant::now()));
+        self.reveal_x = Some(span.start);
         self.go_to(tree, span.start, CONTEXT_ROWS, repaint);
     }
 

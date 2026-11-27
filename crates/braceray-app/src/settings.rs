@@ -14,6 +14,8 @@ use serde_json::{Map, Value};
 
 /// Most recent files kept.
 pub const MAX_RECENT: usize = 15;
+/// Searches kept in the history.
+pub const MAX_HISTORY: usize = 20;
 
 /// Light, dark or follow the OS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -59,6 +61,8 @@ pub struct Settings {
     pub tree_group_size: u64,
     /// Recently opened files, newest first.
     pub recent_files: Vec<PathBuf>,
+    /// Recent search texts, newest first.
+    pub search_history: Vec<String>,
 }
 
 /// Allowed range of [`Settings::index_cache_max_bytes`]: 64 MiB ..= 1 TiB.
@@ -81,6 +85,7 @@ impl Default for Settings {
             max_stored_results: 5_000_000,
             tree_group_size: 1000,
             recent_files: Vec::new(),
+            search_history: Vec::new(),
         }
     }
 }
@@ -108,6 +113,7 @@ impl Settings {
             max_stored_results: field(&obj, "max_stored_results", d.max_stored_results),
             tree_group_size: field(&obj, "tree_group_size", d.tree_group_size),
             recent_files: field(&obj, "recent_files", d.recent_files),
+            search_history: field(&obj, "search_history", d.search_history),
         };
         s.validate();
         s
@@ -152,6 +158,26 @@ impl Settings {
             keep
         });
         self.recent_files.truncate(MAX_RECENT);
+        let mut seen: Vec<String> = Vec::with_capacity(self.search_history.len());
+        self.search_history.retain(|t| {
+            let keep = !t.is_empty() && !seen.contains(t);
+            if keep {
+                seen.push(t.clone());
+            }
+            keep
+        });
+        self.search_history.truncate(MAX_HISTORY);
+    }
+
+    /// Moves `text` to the front of the search history. Returns `true` if it changed.
+    pub fn push_history(&mut self, text: &str) -> bool {
+        if text.is_empty() || self.search_history.first().is_some_and(|t| t == text) {
+            return false;
+        }
+        self.search_history.retain(|t| t != text);
+        self.search_history.insert(0, text.to_owned());
+        self.search_history.truncate(MAX_HISTORY);
+        true
     }
 
     /// The index cache part.
@@ -344,6 +370,24 @@ mod tests {
         assert_eq!(Settings::from_json("not json"), d);
         assert_eq!(Settings::from_json("[1, 2]"), d);
         assert_eq!(Settings::from_json(""), d);
+    }
+
+    #[test]
+    fn search_history_is_capped_deduplicated_and_persisted() {
+        let mut s = Settings::default();
+        for i in 0..30 {
+            s.push_history(&format!("q{i}"));
+        }
+        assert!(s.push_history("q5"));
+        assert!(!s.push_history("q5"));
+        assert!(!s.push_history(""));
+        assert_eq!(s.search_history.len(), MAX_HISTORY);
+        assert_eq!(s.search_history[0], "q5");
+        assert_eq!(s.search_history[1], "q29");
+        let back = Settings::from_json(&s.to_json());
+        assert_eq!(back.search_history, s.search_history);
+        let bad = Settings::from_json(r#"{"search_history": ["a", "", "a", "b"]}"#);
+        assert_eq!(bad.search_history, ["a", "b"]);
     }
 
     #[test]

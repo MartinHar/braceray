@@ -103,6 +103,30 @@ impl BracerayApp {
                     tab.panes.show_selection(tree, &repaint);
                 }
             }
+            Action::FocusSearch => self.search.focus = true,
+            Action::ToggleResults => self.search.results_open = !self.search.results_open,
+            Action::CloseSearch => {
+                self.search.results_open = false;
+                if let Some(t) = self.tabs.get_mut(self.active) {
+                    t.panes.focus = crate::panes::Pane::Tree;
+                }
+            }
+            Action::SearchHistory(text) => self.search.set_text(text),
+            Action::SearchNext | Action::SearchPrev | Action::SearchJump(_) => {
+                let repaint = self.repaint();
+                let text = self.search.settled.text.clone();
+                if self.settings.push_history(&text) {
+                    self.store.save(&self.settings);
+                }
+                if let Some(tab) = self.tabs.get_mut(self.active) {
+                    match action {
+                        Action::SearchJump(i) => tab.search_jump_index(i, &repaint),
+                        Action::SearchNext => tab.search_step(true, &repaint),
+                        _ => tab.search_step(false, &repaint),
+                    }
+                }
+            }
+            Action::OpenExternal(path) => open_external(&path),
             Action::Focus(_) | Action::Close(_) => {}
         }
     }
@@ -170,5 +194,21 @@ impl BracerayApp {
             Ok(_) => self.dialog = Some(rx),
             Err(e) => tracing::warn!("can't start the file dialog thread: {e}"),
         }
+    }
+}
+
+/// Opens `path` with the system's default app (not waiting for it).
+fn open_external(path: &std::path::Path) {
+    let mut cmd = if cfg!(target_os = "macos") {
+        std::process::Command::new("open")
+    } else if cfg!(windows) {
+        let mut c = std::process::Command::new("cmd");
+        c.args(["/C", "start", ""]);
+        c
+    } else {
+        std::process::Command::new("xdg-open")
+    };
+    if let Err(e) = cmd.arg(path).spawn() {
+        tracing::warn!("can't open {}: {e}", path.display());
     }
 }

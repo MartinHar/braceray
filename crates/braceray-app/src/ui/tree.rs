@@ -19,8 +19,7 @@ use crate::tree_view::{TreeKey, TreeView};
 pub const ROW_HEIGHT: f32 = 22.0;
 /// Indentation per level.
 const INDENT: f32 = 16.0;
-/// Width of the scrollbar.
-const SCROLLBAR: f32 = 12.0;
+use super::vlist::SCROLLBAR;
 /// Values up to this size can be copied.
 pub const COPY_LIMIT: u64 = 16 << 20;
 /// Accessible name of the scrollbar.
@@ -38,6 +37,8 @@ pub struct TreeContext<'a> {
     pub rows_drawn: &'a mut usize,
     /// The tree has the keyboard focus.
     pub keys: bool,
+    /// The tab's search, for match markers.
+    pub search: Option<&'a crate::search_view::TabSearch>,
 }
 
 /// Draws the tree into the remaining space of `ui`.
@@ -87,8 +88,15 @@ pub fn show(
             tree.scroll = r + 1.0 - full_rows as f64;
         }
     }
-    scrollbar(
-        ui, rect, list, tree, total, full_rows, max_scroll, cx.tab_id,
+    super::vlist::scrollbar(
+        ui,
+        rect,
+        list,
+        &mut tree.scroll,
+        total,
+        full_rows,
+        egui::Id::unique(("tree_scrollbar", cx.tab_id)),
+        SCROLLBAR_LABEL,
     );
     tree.scroll = tree.scroll.clamp(0.0, max_scroll);
 
@@ -154,6 +162,24 @@ pub fn show(
             palette.text,
         );
         badge(&painter, row_rect, row, palette.punct);
+        if let (Some(search), RowItem::Value(v)) = (cx.search, &row.item) {
+            let start = v.child.key.map_or(v.child.value.start, |k| k.start);
+            if search.has_stored_in(start, v.child.value.end) {
+                let current = search
+                    .current
+                    .is_some_and(|c| c.m.offset >= start && c.m.offset < v.child.value.end);
+                let color = if current {
+                    theme::search_strong(ui)
+                } else {
+                    theme::search_soft(ui).gamma_multiply(2.0)
+                };
+                let bar = Rect::from_min_size(
+                    pos2(row_rect.left(), row_rect.top() + 3.0),
+                    vec2(3.0, ROW_HEIGHT - 6.0),
+                );
+                painter.rect_filled(bar, 1.5, color);
+            }
+        }
 
         if response.clicked() {
             let on_arrow = response
@@ -204,58 +230,6 @@ fn keyboard(ctx: &egui::Context, tree: &mut TreeView, page: u64, repaint: &Repai
     for key in pressed {
         tree.key(key, page, repaint);
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn scrollbar(
-    ui: &mut egui::Ui,
-    rect: Rect,
-    list: Rect,
-    tree: &mut TreeView,
-    total: u64,
-    full_rows: u64,
-    max_scroll: f64,
-    tab_id: u64,
-) {
-    if total <= full_rows {
-        return;
-    }
-    let track = Rect::from_min_max(pos2(list.right(), rect.top()), rect.max);
-    let response = ui.interact(
-        track,
-        egui::Id::unique(("tree_scrollbar", tab_id)),
-        Sense::click_and_drag(),
-    );
-    super::label_icon(&response, Role::ScrollBar, SCROLLBAR_LABEL);
-    let thumb_h = (track.height() * full_rows as f32 / total as f32).clamp(24.0, track.height());
-    let free = (track.height() - thumb_h).max(1.0);
-    if let Some(p) = response.interact_pointer_pos()
-        && (response.dragged() || response.clicked() || response.is_pointer_button_down_on())
-    {
-        let t = ((p.y - track.top() - thumb_h / 2.0) / free).clamp(0.0, 1.0);
-        tree.scroll = f64::from(t) * max_scroll;
-    }
-    let t = if max_scroll > 0.0 {
-        (tree.scroll.clamp(0.0, max_scroll) / max_scroll) as f32
-    } else {
-        0.0
-    };
-    let thumb = Rect::from_min_size(
-        pos2(track.left() + 2.0, track.top() + t * free),
-        vec2(SCROLLBAR - 4.0, thumb_h),
-    );
-    let visuals = ui.visuals();
-    let color = if response.hovered() || response.dragged() {
-        visuals.widgets.hovered.fg_stroke.color.gamma_multiply(0.6)
-    } else {
-        visuals
-            .widgets
-            .inactive
-            .fg_stroke
-            .color
-            .gamma_multiply(0.35)
-    };
-    ui.painter().rect_filled(thumb, 4.0, color);
 }
 
 /// ▸ / ▾ as a filled triangle.

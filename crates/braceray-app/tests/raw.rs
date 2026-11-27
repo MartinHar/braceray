@@ -238,7 +238,10 @@ fn minified_files_open_in_pretty_mode() {
 fn go_to(h: &mut Harness<'_, BracerayApp>, text: &str) {
     h.key_press_modifiers(Modifiers::COMMAND, Key::L);
     h.run_steps(2);
-    h.get_by_role(egui::accesskit::Role::TextInput)
+    // The Go to field (not the search field, which has a label).
+    h.query_all_by_role(egui::accesskit::Role::TextInput)
+        .find(|n| n.accesskit_node().label().is_none())
+        .expect("the Go to field")
         .type_text(text);
     h.run_steps(1);
     h.key_press(Key::Enter);

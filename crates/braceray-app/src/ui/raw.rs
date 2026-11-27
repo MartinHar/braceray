@@ -15,6 +15,7 @@ use super::tree_row::Palette;
 use crate::format;
 use crate::raw_view::text::{RowText, layout};
 use crate::raw_view::{FLASH, Gutter, RawMode, RawRow, RawView};
+use crate::search_view::TabSearch;
 use crate::theme;
 use crate::tree_view::TreeView;
 
@@ -43,7 +44,12 @@ pub struct RawContext<'a> {
     pub repaint: &'a Repaint,
     /// The raw view has the keyboard focus.
     pub focused: bool,
+    /// The tab's search, for highlighting matches.
+    pub search: Option<&'a TabSearch>,
 }
+
+/// Matches highlighted at most per frame.
+const MAX_HIGHLIGHTS: usize = 4096;
 
 /// What happened in the raw view this frame.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -138,6 +144,17 @@ pub fn show(
     } else {
         raw.flash = None;
     }
+    let visible_span = rows
+        .first()
+        .zip(rows.last())
+        .map(|(a, b)| (a.span.start, b.span.end));
+    let hits = match (cx.search, visible_span) {
+        (Some(search), Some((a, b))) => search.matches_in(a, b, MAX_HIGHLIGHTS),
+        _ => Vec::new(),
+    };
+    let current = cx.search.and_then(|s| s.current).map(|c| c.m);
+    let soft = theme::search_soft(ui);
+    let strong = theme::search_strong(ui);
     let sel_color = ui.visuals().selection.bg_fill;
     let flash_color = theme::accent(ui);
     let painter = ui.painter_at(rect);
@@ -160,7 +177,38 @@ pub fn show(
         let origin = pos2(x, top + (ROW_HEIGHT - galley.size().y) / 2.0);
         widest = widest.max(x + raw.hscroll + galley.size().x - text_rect.left());
 
-        // Backgrounds: flash, then the selection.
+        // Backgrounds: search matches, the current match, the flash, the selection.
+        let first_hit = hits.partition_point(|m| m.end() <= row.span.start);
+        for m in hits[first_hit..]
+            .iter()
+            .take_while(|m| m.offset < row.span.end)
+        {
+            let color = if current == Some(*m) { strong } else { soft };
+            fill_chars(
+                &text_painter,
+                &galley,
+                origin,
+                &text,
+                bytes,
+                span_of(*m),
+                color,
+            );
+        }
+        if let Some(m) = current
+            && !hits.contains(&m)
+            && m.offset < row.span.end
+            && m.end() > row.span.start
+        {
+            fill_chars(
+                &text_painter,
+                &galley,
+                origin,
+                &text,
+                bytes,
+                span_of(m),
+                strong,
+            );
+        }
         if let Some((span, alpha)) = flash {
             fill_chars(
                 &text_painter,
@@ -183,6 +231,13 @@ pub fn show(
                 FontId::proportional(10.0),
                 palette.punct,
             );
+        }
+        if let Some(at) = raw.reveal_x
+            && at >= row.span.start
+            && at < row.span.end
+        {
+            reveal_x(raw, &text, &galley, origin, text_rect, bytes, at);
+            ctx.request_repaint();
         }
         text_painter.galley(origin, galley.clone(), palette.text);
         gutter(
@@ -287,6 +342,38 @@ fn highlight(text: &RowText, palette: &Palette, error: Color32, font: FontId) ->
         job.append(&text.text[at..], 0.0, format(palette.punct));
     }
     job
+}
+
+/// Sets the horizontal scroll so `at` (in this row) is a third into the view.
+fn reveal_x(
+    raw: &mut RawView,
+    text: &RowText,
+    galley: &egui::Galley,
+    origin: egui::Pos2,
+    text_rect: Rect,
+    bytes: &[u8],
+    at: u64,
+) {
+    raw.reveal_x = None;
+    let span = braceray_core::nav::Span {
+        start: at,
+        end: at + 1,
+    };
+    let Some((a, _)) = text.chars_of(bytes, span) else {
+        return;
+    };
+    let x = origin.x + galley.pos_from_cursor(egui::text::CCursor::new(a)).min.x;
+    if x < text_rect.left() + 8.0 || x > text_rect.right() - 40.0 {
+        let target = text_rect.left() + text_rect.width() / 3.0;
+        raw.hscroll = (raw.hscroll + x - target).max(0.0);
+    }
+}
+
+fn span_of(m: braceray_core::search::Match) -> braceray_core::nav::Span {
+    braceray_core::nav::Span {
+        start: m.offset,
+        end: m.end(),
+    }
 }
 
 /// Fills the characters of `span` (source offsets) in a row.

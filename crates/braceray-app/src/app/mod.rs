@@ -16,6 +16,7 @@ use crate::theme;
 mod actions;
 use crate::ui::debug_overlay::{self, FrameStats};
 use crate::ui::goto::GoToDialog;
+use crate::ui::search::SearchBar;
 use crate::ui::settings_window::CacheInfo;
 use crate::ui::{self, Action};
 
@@ -70,6 +71,8 @@ pub struct BracerayApp {
     pub show_shortcuts: bool,
     /// The Go to dialog, when open.
     pub goto: Option<GoToDialog>,
+    /// The search bar (shared by every tab).
+    pub search: SearchBar,
     cache_info: CacheInfo,
     cache_job: Option<JobHandle<(), u64>>,
     missing_recent: HashSet<PathBuf>,
@@ -118,6 +121,7 @@ impl BracerayApp {
             show_settings: false,
             show_shortcuts: false,
             goto: None,
+            search: SearchBar::default(),
             cache_info: CacheInfo::Unavailable,
             cache_job: None,
             missing_recent: HashSet::new(),
@@ -175,6 +179,25 @@ impl BracerayApp {
             .show(ui, |ui| {
                 ui::toolbar::show(ui, &self.tabs, self.active, &mut actions)
             });
+        if !self.tabs.is_empty() {
+            let active = self.active;
+            egui::Panel::top("search_bar")
+                .frame(
+                    egui::Frame::side_top_panel(ui.style())
+                        .inner_margin(egui::Margin::symmetric(8, 4)),
+                )
+                .show(ui, |ui| {
+                    let search = self.tabs.get(active).map(|t| &t.search);
+                    ui::search::show(
+                        ui,
+                        &mut self.search,
+                        search,
+                        &self.settings.search_history,
+                        &mut actions,
+                    )
+                });
+        }
+        self.run_search(&ctx, &repaint);
         egui::Panel::bottom("status_bar")
             .frame(
                 egui::Frame::side_top_panel(ui.style()).inner_margin(egui::Margin::symmetric(8, 3)),
@@ -183,6 +206,7 @@ impl BracerayApp {
                 ui::status::show(ui, self.active_tab(), self.memory)
             });
         let active = self.active;
+        self.results_panel(ui, &repaint, &mut actions);
         let rows_drawn = egui::CentralPanel::default()
             .show(ui, |ui| match self.tabs.get_mut(active) {
                 Some(tab) => ui::body::show(ui, active, tab, &repaint, &mut actions),
@@ -273,6 +297,13 @@ impl BracerayApp {
                 crate::format::bytes(tree.cache_bytes() as u64),
                 tree.jobs_running(),
                 if tree.is_preview() { " · preview" } else { "" }
+            ),
+            format!(
+                "Search: first result {} ({} after typing) · finished in {} · {} stored",
+                ms(tab.search.first_result),
+                ms(tab.search.first_result_typed),
+                ms(tab.search.handle().and_then(|h| h.duration())),
+                crate::format::group_digits(tab.search.stored() as u64)
             ),
         ]
     }
@@ -408,6 +439,7 @@ impl BracerayApp {
         let open = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
         let close = KeyboardShortcut::new(Modifiers::COMMAND, Key::W);
         let goto = KeyboardShortcut::new(Modifiers::COMMAND, Key::L);
+        let mac = ctx.os() == egui::os::OperatingSystem::Mac;
         let debug = [
             KeyboardShortcut::new(Modifiers::CTRL | Modifiers::SHIFT, Key::D),
             KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::D),
@@ -425,6 +457,29 @@ impl BracerayApp {
             if i.consume_shortcut(&goto) {
                 actions.push(Action::GoTo);
             }
+            // Shift variants first: a pattern without Shift also matches with Shift.
+            let cmd_shift = Modifiers::COMMAND | Modifiers::SHIFT;
+            if i.consume_shortcut(&KeyboardShortcut::new(cmd_shift, Key::F)) {
+                actions.push(Action::ToggleResults);
+            }
+            if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::F)) {
+                actions.push(Action::FocusSearch);
+            }
+            if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::SHIFT, Key::F3)) {
+                actions.push(Action::SearchPrev);
+            }
+            if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::NONE, Key::F3)) {
+                actions.push(Action::SearchNext);
+            }
+            if mac {
+                let cmd = Modifiers::MAC_CMD;
+                if i.consume_shortcut(&KeyboardShortcut::new(cmd | Modifiers::SHIFT, Key::G)) {
+                    actions.push(Action::SearchPrev);
+                }
+                if i.consume_shortcut(&KeyboardShortcut::new(cmd, Key::G)) {
+                    actions.push(Action::SearchNext);
+                }
+            }
         });
         let typing = ctx.egui_wants_keyboard_input();
         let help = ctx.input(|i| {
@@ -434,6 +489,55 @@ impl BracerayApp {
         });
         if help && !typing {
             actions.push(Action::ToggleShortcuts);
+        }
+    }
+
+    /// Settles the typed text after the debounce and makes the active tab run the
+    /// settled query (a new search cancels the tab's previous one).
+    fn run_search(&mut self, ctx: &egui::Context, repaint: &Repaint) {
+        if let Some(wait) = self.search.tick() {
+            ctx.request_repaint_after(wait);
+        }
+        let max = usize::try_from(self.settings.max_stored_results).unwrap_or(usize::MAX);
+        if let Some(tab) = self.tabs.get_mut(self.active)
+            && let Some(doc) = tab.document().cloned()
+        {
+            let typed = self.search.last_edit;
+            tab.search
+                .ensure(&doc, &self.search.settled, max, typed, repaint);
+        }
+    }
+
+    /// The results panel of the active tab (above the status bar).
+    fn results_panel(&mut self, ui: &mut egui::Ui, repaint: &Repaint, actions: &mut Vec<Action>) {
+        let Some(tab) = self.tabs.get_mut(self.active) else {
+            return;
+        };
+        if tab.search.query().text.is_empty() || !self.search.results_open {
+            return;
+        }
+        let tab_id = tab.id;
+        let out = egui::Panel::bottom(("results_panel", tab_id))
+            .resizable(true)
+            .default_size(220.0)
+            .size_range(90.0..=(ui.available_height() * 0.8).max(120.0))
+            .frame(
+                egui::Frame::side_top_panel(ui.style()).inner_margin(egui::Margin::symmetric(8, 4)),
+            )
+            .show(ui, |ui| {
+                let cx = ui::results::ResultsContext {
+                    tab_id,
+                    repaint,
+                    focused: tab.panes.focus == crate::panes::Pane::Results,
+                };
+                ui::results::show(ui, &mut tab.search, tab.tree.as_ref(), cx, actions)
+            })
+            .inner;
+        if out.focus {
+            tab.panes.focus = crate::panes::Pane::Results;
+        }
+        if let Some(i) = out.jump {
+            actions.push(Action::SearchJump(i));
         }
     }
 

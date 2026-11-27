@@ -73,5 +73,9 @@ pub fn parts(tab: &OpenDocument) -> Vec<String> {
         TabState::Failed { .. } => out.push("Can't open".to_owned()),
         TabState::Cancelled => out.push("Indexing cancelled".to_owned()),
     }
+    let search = tab.search.count_text();
+    if !search.is_empty() {
+        out.push(format!("Search: {search}"));
+    }
     out
 }

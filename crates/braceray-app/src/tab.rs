@@ -13,6 +13,7 @@ use braceray_core::{Document, Error, Validation};
 
 use crate::format;
 use crate::panes::Panes;
+use crate::search_view::TabSearch;
 use crate::tree_view::{Source, TreeView};
 
 /// How often the file is checked for changes on disk.
@@ -127,6 +128,8 @@ pub struct OpenDocument {
     pub tree: Option<TreeView>,
     /// The raw view and its link to the tree.
     pub panes: Panes,
+    /// The search over this file.
+    pub search: TabSearch,
     /// When the file was opened (or reloaded).
     pub opened: Instant,
     /// Time from opening to the first frame with tree rows.
@@ -157,6 +160,7 @@ impl OpenDocument {
             selection: None,
             tree: None,
             panes: Panes::default(),
+            search: TabSearch::default(),
             opened: Instant::now(),
             first_rows: None,
             group_size: env.group_size,
@@ -178,6 +182,7 @@ impl OpenDocument {
         self.selection = None;
         self.tree = None;
         self.panes = Panes::default();
+        self.search.reset();
         self.opened = Instant::now();
         self.first_rows = None;
         self.preview_job = None;
@@ -227,6 +232,7 @@ impl OpenDocument {
             self.panes.update(tree, repaint);
             self.selection = tree.selected_spans().map(|(_, value)| value.start);
         }
+        self.search_poll(repaint);
         if let Some(changed) = self.change_check.as_mut().and_then(|j| j.try_recv()) {
             self.change_check = None;
             if let JobEvent::Done(true) = changed {
@@ -351,9 +357,9 @@ impl OpenDocument {
         }
     }
 
-    /// `true` while the open/index job runs.
+    /// `true` while the open/index job or a search runs.
     pub fn is_busy(&self) -> bool {
-        self.job.is_some()
+        self.job.is_some() || self.search.is_busy() || self.search.copy.is_busy()
     }
 
     /// The mapped document, once known.

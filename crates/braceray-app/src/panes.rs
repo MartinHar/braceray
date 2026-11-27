@@ -21,6 +21,8 @@ pub enum Pane {
     Tree,
     /// The raw view (arrows scroll).
     Raw,
+    /// The results list (arrows move, Enter jumps).
+    Results,
 }
 
 /// Tree ↔ raw state of a tab.

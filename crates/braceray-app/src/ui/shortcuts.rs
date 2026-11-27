@@ -7,12 +7,27 @@ pub const SHORTCUTS: &[(&str, &str, bool)] = &[
     ("Mod+O", "Open file", true),
     ("Mod+W", "Close tab", true),
     ("?", "Keyboard shortcuts", true),
-    ("Mod+F", "Search", false),
-    ("F3 / Shift+F3", "Next / previous match", false),
+    ("Mod+F", "Search (focus the search box)", true),
+    (
+        "F3 / Shift+F3",
+        "Next / previous match (macOS also ⌘G / ⌘⇧G)",
+        true,
+    ),
     (
         "Enter / Shift+Enter",
         "Next / previous match (in the search box)",
-        false,
+        true,
+    ),
+    (
+        "Esc (search box)",
+        "Clear the search; again: close it",
+        true,
+    ),
+    ("Mod+Shift+F", "Show / hide the results panel", true),
+    (
+        "↑ / ↓, Enter (results)",
+        "Move in the results list / jump to the result",
+        true,
     ),
     (
         "Mod+L",

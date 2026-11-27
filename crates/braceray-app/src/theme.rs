@@ -103,3 +103,21 @@ fn visuals(dark: bool) -> Visuals {
     v.widgets.active.bg_stroke = Stroke::new(1.0, accent);
     v
 }
+
+/// Soft background of search matches.
+pub fn search_soft(ui: &egui::Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        Color32::from_rgba_unmultiplied(0xFA, 0xCC, 0x15, 0x45)
+    } else {
+        Color32::from_rgba_unmultiplied(0xFA, 0xCC, 0x15, 0x70)
+    }
+}
+
+/// Strong background of the current search match.
+pub fn search_strong(ui: &egui::Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        Color32::from_rgba_unmultiplied(0xF9, 0x73, 0x16, 0xC0)
+    } else {
+        Color32::from_rgba_unmultiplied(0xF9, 0x73, 0x16, 0xA0)
+    }
+}

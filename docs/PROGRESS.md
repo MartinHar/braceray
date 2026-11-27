@@ -11,10 +11,10 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 10 — Search UI |
+| **Current step** | 11 — Breadcrumbs & copy |
 | **Status** | ⬜ Not started |
 | **Current sub-task** | — |
-| **Next action** | Martin reviews step 09; then start step 10 (search UI) |
+| **Next action** | Martin reviews step 10 (and answers the debounce question); then start step 11 |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -24,6 +24,7 @@
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
 - [x] 2026-11-27 · Step 05 · `directories` depends on `option-ext` (MPL-2.0, not on the allow-list) · Resolved: Martin chose to keep the std-only folder lookup (ADR 014); no `directories`, no MPL exception
 - [x] 2026-11-27 · Step 06 · Installing `egui_mcp` was blocked by Claude Code's permission policy · Resolved: Martin installed it (binary `egui-mcp`); driven over stdio JSON-RPC. Register with `claude mcp add egui -- egui-mcp` to get the tools natively
+- [ ] 2026-11-27 · Step 10 · "First results < 200 ms" is met from the search start (17–35 ms), but from the keystroke it is 150 ms debounce + 1–2 frames ≈ 170–220 ms · Is measuring from the search start OK, or should the debounce go down (e.g. 100 ms) so it holds from the keystroke too? Not blocking
 <!-- Format: - [ ] YYYY-MM-DD · Step NN · question or blocker · what you need from me -->
 
 ---
@@ -40,7 +41,7 @@
 | 07 | Tree view | MVP | ✅ | 2026-11-27 | 2026-11-27 | fe313f8, e202057 |
 | 08 | Raw text view | MVP | ✅ | 2026-11-27 | 2026-11-27 | ebda464 (8a), d4c6a23 (8b) |
 | 09 | Search engine (core) | MVP | ✅ | 2026-11-27 | 2026-11-27 | 2419a48 |
-| 10 | Search UI | MVP | ⬜ | | | |
+| 10 | Search UI | MVP | ⚠️ | 2026-11-27 | 2026-11-27 | (see git log) |
 | 11 | Breadcrumbs & copy | MVP | ⬜ | | | |
 | 12 | MVP hardening & release v0.1.0 | MVP | ⬜ | | | |
 | 13 | Advanced search (regex, keys/values) | v1 | ⬜ | | | |
@@ -50,7 +51,7 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 9 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 10 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
 
 ### MVP time estimate (made 2026-11-25, after step 01)
 About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
@@ -89,10 +90,10 @@ Fill in with real measurements (details and machine info in `docs/PERF.md`). Mar
 | Plain search count, warm (2 GB) | < 1.5 s | 19–20 ms (72–93 ms first search on a fresh mapping) | M3P | 09 | ✅ |
 | Case-insensitive search (2 GB) | < 3 s | 19–82 ms (ASCII), 30 ms Unicode; `e` with 110 M matches 298 ms | M3P | 09 | ✅ |
 | Simple regex (2 GB) | < 5 s | | | 13 | — |
-| First search result | < 200 ms | core: 4–13 ms (`email`, 2 GB); in the UI with step 10 | M3P | 09/10 | — |
+| First search result | < 200 ms | UI: 17–35 ms from the search start to the result row on screen (also while indexing); 187–222 ms from the keystroke incl. the 150 ms debounce | M3P | 10 | ✅ |
 | `$..price` JSONPath (2 GB) | < 5 s | | | 14 | — |
 | Expand 1M-child node | < 200 ms | < 0.01 ms in the app (groups); 10M array 56 ns bench; deep group children ~110 ms warm in the background | M3P | 07 | ✅ |
-| Scrolling p99 frame time | < 16 ms | tree: p99 0.94 ms, max 1.15 ms (10 M rows, drag); raw view: thumb drag on `orders_min_2g` CPU frame p99 7.2 / max 15.4 ms, paging p99 8.8 ms, 200 MB string p99 10.7 ms; results later | M3P | 07/08/10 | ✅ tree, raw |
+| Scrolling p99 frame time | < 16 ms | tree: p99 0.94 ms, max 1.15 ms (10 M rows, drag); raw view: thumb drag on `orders_min_2g` CPU frame p99 7.2 / max 15.4 ms, paging p99 8.8 ms, 200 MB string p99 10.7 ms; results list (2.45 M rows) p99 4.5 / max 6.0 ms | M3P | 07/08/10 | ✅ |
 | Index memory (% of file) | ≤ 25 % | 21.9 % (pretty) / 4.2 % (minified, adaptive) | M3P | 04 | ✅ |
 | Diff 2 × 1 GB, warm | < 30 s | | | 18 | — |
 
@@ -523,6 +524,46 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 **Decisions** (also in docs/DECISIONS.md)
 - 023: engines, Armenian ligature rule, whole-word rule, chain stitching, capped store with memory budget, chain starts for navigation beyond the cap, API differences.
 
+### Step 10 — Search UI
+**Status:** ⚠️ Done with known issues · **Started:** 2026-11-27 · **Finished:** 2026-11-27
+
+**Plan**
+- [x] Core: dedicated search thread pool (I-014); `SearchHandle::matches_in` (highlights) and a cloneable `SearchNav` for next/prev on a worker; `path::jsonpath` formatting of `PathSegment`s
+- [x] Core test: paths of the first 1000 matches equal a serde walk (small fixtures)
+- [x] App `search_view`: per-tab search state (handle, current match, next/prev from the selection with wrap, beyond-cap navigation on a worker, pending jump while indexing, row info LRU + path/line job, copy-all-paths job)
+- [x] App `ui/search.rs`: search bar (debounce 150 ms, Enter/Shift+Enter, Esc, `Aa`, `ab|`, disabled `.*` + scope, count text, history dropdown (20, persisted))
+- [x] App `ui/results.rs`: bottom panel (resizable, collapsible, Cmd/Ctrl+Shift+F), virtual list with own f64 scroll, ↑/↓/Enter, header (count, cap note, Copy all paths → clipboard or temp file + Open)
+- [x] Highlights: raw view soft background for visible matches + accent for current; tree markers for rows containing stored matches; status bar count/index; "Wrapped to top" toast
+- [x] Shortcuts: Ctrl/Cmd+F, F3/Shift+F3, Cmd+G/Cmd+Shift+G (macOS), shortcuts dialog entries
+- [x] kittests: count label, Enter/F3 move the selection, result click selects the node, toggles re-run, Esc clears, (+ wrap, history, panel toggle, cap, while indexing, copy all, Windows/macOS shortcuts)
+- [x] Check in the optimized app with egui-mcp on `orders_2g.json`: first results, list scrolling, first/middle/last/beyond-cap jumps; search while indexing in the 60 fps `search_big` harness
+- [x] Docs: DECISIONS (ADR 024), PERF, CHANGELOG, PROGRESS
+
+**Acceptance criteria** (copied from the step file)
+- [x] Typing "needle_common" in the 2 GB file: the first results appear in < 200 ms; the final count matches the manifest. (24,503 = manifest. Search start → first result row on screen 17–35 ms in a 60 fps harness, also while indexing; 12 ms in the app's overlay. From the keystroke it is 187–222 ms because the same step asks for a 150 ms debounce: see the question below and ADR 024)
+- [x] The results list scrolls smoothly through millions of rows. (`email`, 2,450,341 rows: CPU frame p99 4.5 ms, max 6.0 ms)
+- [x] Clicking any result (first, middle, last, beyond the stored cap via F3) lands on the right node in the tree and the right bytes in the raw view. (app + screenshots: #1, #3, #12,253, #24,503; `e` with 73 M matches: F3 past #5,000,000; kittests with a cap of 1,000)
+- [x] Changing a toggle re-runs the search instantly; typing cancels the previous search (no stale results). (kittest `toggles_rerun_the_search_and_typing_replaces_it`; a new query drops the old handle, which cancels it)
+- [x] Search works while indexing is still running; paths fill in when the index is ready. (kittest with indexing held; `search_big` on 2 GB during the build)
+- [ ] All keyboard shortcuts work on Windows and macOS. (macOS in the app; kittests with egui set to Windows (Ctrl) and macOS (Cmd, ⌘G) pass. Not run on a real Windows machine yet: I-015, step 12)
+
+**Quality gates (last run)**
+- [x] fmt · [x] clippy · [x] tests (256 passed, 0 failed, 9 ignored; ignored `search_big` (app and core) pass with `--ignored`) · [x] cargo deny · [x] benches (search faster; others within noise of step 09, see PERF.md). Run 2026-11-27 on M3 Pro, macOS.
+
+**What was done**
+- Core: search workers on their own rayon pool (I-014); `SearchHandle::matches_in` / `nav()` + `SearchNav`; `path::{jsonpath, decode_key}`; tests `search_paths` (serde-walk oracle for the first 1000 matches on generated orders, pretty and minified; `matches_in` vs the store with caps 0–5 M; `SearchNav` from another thread; a search while every global pool thread is busy).
+- App: `search_view` (per-tab state, row info LRU + job, copy-all job), `tab_search` (jump, next/prev from the selection, retry while searching, pending jump past the preview), `ui::search` (bar), `ui::results` (panel), `ui::vlist` (scrollbar shared with the tree), raw highlights + horizontal reveal, tree markers, status bar, shortcuts, history in settings, search timings in the debug overlay.
+- Found while checking in the app: a match far into a long line was off screen (added the horizontal reveal); pretty-file previews showed runs of indentation (collapsed); `✕` isn't in the system fonts (now `×`).
+
+**Known limitations / follow-ups**
+- Shortcuts not tried on real Windows (I-015).
+- Keystroke → first result is 150 ms debounce + 1–2 frames (≈ 170–220 ms); see the question for Martin.
+- Tree markers come from stored matches only (beyond a 5 M cap no markers past the last stored match); raw highlights beyond the cap scan only the bytes on screen.
+- The results panel's preview is cut by bytes (±32 / 48) and the path column by width; very long paths are clipped (full path in the tooltip later, with step 11's copy path).
+
+**Decisions** (also in docs/DECISIONS.md)
+- 024: one bar for all tabs, disabled v1 controls, cursor from the selection, retry while searching, lazy row info, highlight sources, history rule, copy-all to file above 10k, own search pool, how "first result < 200 ms" is measured.
+
 ---
 
 ## Session log
@@ -535,6 +576,12 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-27 (6) · Step 10
+- Did: step 10 search UI end to end: core search pool (I-014), `matches_in`, `SearchNav`, JSONPath formatting + serde-walk oracle; app search bar, per-tab search state, results panel, raw highlights, tree markers, status, shortcuts, history, copy all paths. Checked in the optimized app on `orders_2g.json` through egui-mcp (counts, jumps first/middle/last/beyond the 5 M cap, 2.45 M-row list p99 4.5 ms) and with a 60 fps harness for first-result timing. Fixed three things found that way (horizontal reveal, preview whitespace, missing glyph).
+- Tests: 256 passed, 0 failed, 9 ignored (2 GB tests pass with `--ignored`) · fmt/clippy/deny clean · benches: search faster, rest within noise
+- Commits: see git log (10a core, 10b app); not pushed
+- Next: Martin reviews step 10 and answers the debounce question; then step 11 (breadcrumbs & copy)
 
 ### 2026-11-27 (5) · Step 09
 - Did: step 09 search engine end to end: engines (memmem / Aho-Corasick / Unicode regex + Armenian `և` rule), chunk chains stitched across borders, ordered publisher, capped store with memory budget, next/prev beyond the cap; proptest + fixture oracles, 2 GB test, fuzz target, bench. Found and fixed a test bug (an earlier search kept running and delayed the cancel check) and showed that the slow "first search after open" runs were page-cache evictions, not page faults.
@@ -618,5 +665,6 @@ Issues found during the build that are not fixed yet.
 | I-011 | 08 | Low | `index_build::cancel_returns_quickly` flakes (≈ 1 in 4 runs of the whole binary: 57–60 ms vs the 50 ms limit) because the binary's 10,000-case proptests load every core at the same time; passes alone. Reproduced on the step 07 commit. Fix: run it in its own test binary or under a lock with the proptests | 12 | Open |
 | I-012 | 08 | Low | Revealing a value tens of thousands of levels deep (raw click / Go to in `deep_100k`, depth 56,250) costs one 20–60 ms frame: `TreeModel::reveal` expands level by level on the UI thread, O(depth × segments). Fix: insert the whole chain of segments in one pass, or reveal on a worker | 12 | Open |
 | I-013 | 08 | Low | Tree and raw panes can't be hidden yet (architecture §7: "either can be hidden"); only the split is resizable. Add View toggles (toolbar + shortcuts) and persist them | 12 | Open |
-| I-014 | 09 | Medium | Search workers run on the global rayon pool, which the index build also uses. A search started while a 2 GB index builds may wait for pool threads (up to the build time) before its first result; seen in a test where one search's workers queued ~40 ms behind another's. Fix in step 10: a dedicated search pool (or a few dedicated threads), measured with "first result < 200 ms" during indexing | 10 | Open |
+| I-015 | 10 | Low | Search shortcuts (Ctrl+F, Ctrl+Shift+F, F3/Shift+F3, Enter/Shift+Enter, Esc) checked on macOS and in kittests with egui told it runs on Windows, but not on a real Windows machine | 12 | Open |
+| I-014 | 09 | Medium | Search workers run on the global rayon pool, which the index build also uses. A search started while a 2 GB index builds may wait for pool threads (up to the build time) before its first result; seen in a test where one search's workers queued ~40 ms behind another's. Fix in step 10: a dedicated search pool (or a few dedicated threads), measured with "first result < 200 ms" during indexing | 10 | Resolved (step 10: own search pool; first result 17–35 ms during a 2 GB build) |
 | I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Open |
