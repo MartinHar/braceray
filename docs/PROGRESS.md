@@ -39,7 +39,7 @@
 | 06 | App shell | MVP | ✅ | 2026-11-27 | 2026-11-27 | eccc3e5, 509580d |
 | 07 | Tree view | MVP | ✅ | 2026-11-27 | 2026-11-27 | fe313f8, e202057 |
 | 08 | Raw text view | MVP | ✅ | 2026-11-27 | 2026-11-27 | ebda464 (8a), d4c6a23 (8b) |
-| 09 | Search engine (core) | MVP | ✅ | 2026-11-27 | 2026-11-27 | (see git log) |
+| 09 | Search engine (core) | MVP | ✅ | 2026-11-27 | 2026-11-27 | 2419a48 |
 | 10 | Search UI | MVP | ⬜ | | | |
 | 11 | Breadcrumbs & copy | MVP | ⬜ | | | |
 | 12 | MVP hardening & release v0.1.0 | MVP | ⬜ | | | |
@@ -539,7 +539,7 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 ### 2026-11-27 (5) · Step 09
 - Did: step 09 search engine end to end: engines (memmem / Aho-Corasick / Unicode regex + Armenian `և` rule), chunk chains stitched across borders, ordered publisher, capped store with memory budget, next/prev beyond the cap; proptest + fixture oracles, 2 GB test, fuzz target, bench. Found and fixed a test bug (an earlier search kept running and delayed the cancel check) and showed that the slow "first search after open" runs were page-cache evictions, not page faults.
 - Tests: 234 passed, 0 failed, 8 ignored (100 MB set and 2 GB tests pass with `--ignored`) · fmt/clippy/deny clean · benches within 10 % · fuzz `search_any` 826,872 runs clean
-- Commits: `feat: search engine core (step 09)` (see git log); not pushed
+- Commits: 2419a48; not pushed
 - Next: Martin reviews step 09; then step 10 (search UI)
 
 
