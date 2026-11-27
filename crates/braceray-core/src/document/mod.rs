@@ -45,6 +45,13 @@ pub struct Document {
     content_start: usize,
 }
 
+impl AsRef<[u8]> for Document {
+    /// The same as [`Document::bytes`], so a document can be searched directly.
+    fn as_ref(&self) -> &[u8] {
+        self.bytes()
+    }
+}
+
 impl Document {
     /// Opens and maps `path`, and checks that it looks like UTF-8 JSON.
     ///

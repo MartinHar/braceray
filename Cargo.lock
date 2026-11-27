@@ -613,6 +613,7 @@ dependencies = [
 name = "braceray-core"
 version = "0.0.0"
 dependencies = [
+ "aho-corasick",
  "bytemuck",
  "criterion",
  "gen-fixtures",
@@ -621,6 +622,7 @@ dependencies = [
  "memory-stats",
  "proptest",
  "rayon",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

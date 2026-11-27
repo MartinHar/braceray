@@ -18,6 +18,7 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | accesskit_winit | Apache-2.0 |
 | adler2 | 0BSD OR MIT OR Apache-2.0 |
 | ahash | MIT OR Apache-2.0 |
+| aho-corasick | Unlicense OR MIT |
 | allocator-api2 | MIT OR Apache-2.0 |
 | android-activity | MIT OR Apache-2.0 |
 | android-properties | MIT |
@@ -256,6 +257,9 @@ Fonts bundled by egui (`epaint_default_fonts`) are licensed under OFL-1.1 and th
 | rayon-core | MIT OR Apache-2.0 |
 | read-fonts | MIT OR Apache-2.0 |
 | redox_syscall | MIT |
+| regex | MIT OR Apache-2.0 |
+| regex-automata | MIT OR Apache-2.0 |
+| regex-syntax | MIT OR Apache-2.0 |
 | renderdoc-sys | MIT OR Apache-2.0 |
 | rfd | MIT |
 | rmp | MIT |

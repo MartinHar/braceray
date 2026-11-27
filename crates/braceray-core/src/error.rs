@@ -119,6 +119,20 @@ pub enum Error {
     #[error("The background job stopped unexpectedly. Please report this as a bug.")]
     JobPanicked,
 
+    /// The search query can't be compiled (for example, far too long).
+    #[error("Invalid search: {message}")]
+    SearchQuery {
+        /// What the engine reported.
+        message: String,
+    },
+
+    /// The search asks for a feature that isn't available yet.
+    #[error("{feature} search isn't available yet.")]
+    SearchUnsupported {
+        /// The feature, such as `"Regex"`.
+        feature: &'static str,
+    },
+
     /// The OS refused to memory-map the file.
     #[error("Can't map this file (network drive?). Copy it locally. ({source})")]
     Mmap {

@@ -11,10 +11,10 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 09 — Search engine (core) |
+| **Current step** | 10 — Search UI |
 | **Status** | ⬜ Not started |
 | **Current sub-task** | — |
-| **Next action** | Martin reviews step 08; then start step 09 (search engine) |
+| **Next action** | Martin reviews step 09; then start step 10 (search UI) |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -39,7 +39,7 @@
 | 06 | App shell | MVP | ✅ | 2026-11-27 | 2026-11-27 | eccc3e5, 509580d |
 | 07 | Tree view | MVP | ✅ | 2026-11-27 | 2026-11-27 | fe313f8, e202057 |
 | 08 | Raw text view | MVP | ✅ | 2026-11-27 | 2026-11-27 | ebda464 (8a), d4c6a23 (8b) |
-| 09 | Search engine (core) | MVP | ⬜ | | | |
+| 09 | Search engine (core) | MVP | ✅ | 2026-11-27 | 2026-11-27 | (see git log) |
 | 10 | Search UI | MVP | ⬜ | | | |
 | 11 | Breadcrumbs & copy | MVP | ⬜ | | | |
 | 12 | MVP hardening & release v0.1.0 | MVP | ⬜ | | | |
@@ -50,7 +50,7 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 8 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 9 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
 
 ### MVP time estimate (made 2026-11-25, after step 01)
 About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
@@ -86,10 +86,10 @@ Fill in with real measurements (details and machine info in `docs/PERF.md`). Mar
 | Full index, warm (2 GB) | < 5 s | 1.18 s (pretty) / 1.94 s (minified) | M3P | 04 | ✅ |
 | Full index, cold NVMe (2 GB) | < 10 s | ~3.0 s / 3.7 s (page cache partly evicted, not a true reboot-cold) | M3P | 04 | — |
 | Re-open from cache (2 GB) | < 1 s | 14 ms (pretty, entry 471 MB) / 3.6 ms (minified), warm | M3P | 05 | ✅ |
-| Plain search count, warm (2 GB) | < 1.5 s | | | 09 | — |
-| Case-insensitive search (2 GB) | < 3 s | | | 09 | — |
+| Plain search count, warm (2 GB) | < 1.5 s | 19–20 ms (72–93 ms first search on a fresh mapping) | M3P | 09 | ✅ |
+| Case-insensitive search (2 GB) | < 3 s | 19–82 ms (ASCII), 30 ms Unicode; `e` with 110 M matches 298 ms | M3P | 09 | ✅ |
 | Simple regex (2 GB) | < 5 s | | | 13 | — |
-| First search result | < 200 ms | | | 10 | — |
+| First search result | < 200 ms | core: 4–13 ms (`email`, 2 GB); in the UI with step 10 | M3P | 09/10 | — |
 | `$..price` JSONPath (2 GB) | < 5 s | | | 14 | — |
 | Expand 1M-child node | < 200 ms | < 0.01 ms in the app (groups); 10M array 56 ns bench; deep group children ~110 ms warm in the background | M3P | 07 | ✅ |
 | Scrolling p99 frame time | < 16 ms | tree: p99 0.94 ms, max 1.15 ms (10 M rows, drag); raw view: thumb drag on `orders_min_2g` CPU frame p99 7.2 / max 15.4 ms, paging p99 8.8 ms, 200 MB string p99 10.7 ms; results later | M3P | 07/08/10 | ✅ tree, raw |
@@ -482,6 +482,47 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 021: pretty layout as a pure function of the bytes, long tokens split at byte steps from the token start, anchors from the index, budgeted resumable seek.
 - 022: raw view UI (byte-anchored scrolling, shared `NavCache`, gutter offsets, sync, focus, copy, Go to on a worker).
 
+### Step 09 — Search engine (core)
+**Status:** ✅ Done · **Started:** 2026-11-27 · **Finished:** 2026-11-27
+
+**Plan**
+- [x] Deps via `cargo add`: `aho-corasick`, `regex`
+- [x] `search/engine.rs`: pick memmem (case-sensitive) / Aho-Corasick ASCII-ci / `regex::bytes` Unicode-ci (+ Armenian `և` ↔ `եվ`/`եւ`), whole-word filter, max match length
+- [x] `search/chain.rs`: leftmost-first non-overlapping chain over a chunk window (matches *starting* in the chunk), cancel checks, stitching across chunk borders with resync
+- [x] `search/run.rs`: workers on the rayon pool, per-chunk slots, ordered publisher, store with cap + memory budget, per-chunk chain starts for on-demand `next_after` / `prev_before` beyond the cap
+- [x] `search/mod.rs`: `SearchQuery`, `Scope`, `SearchOptions`, `Match`, `start_search`, `SearchHandle` (count/progress/stored/get/index_of_offset/next/prev/cancel on drop/wait)
+- [x] Tests: unit, proptest oracle (naive non-overlapping count) with chunk sizes 1–8 MiB, JSON inputs, Unicode regex oracle, fixtures, cap = 10 next/prev, cancel, drop, BOM document, ignored 100 MB set and 2 GB manifest + timing test
+- [x] Fuzz target `search_any`; criterion bench `search` (`search_cs_100m`, `search_ci_100m`)
+- [x] Docs: PERF.md, DECISIONS.md (ADR 023), CHANGELOG, THIRD_PARTY_LICENSES, fuzz README, PROGRESS
+
+**Acceptance criteria** (copied from the step file)
+- [x] Count equals a naive count on all fixtures ≤ 100 MB and on proptest inputs, with chunk sizes 64, 65, 4096 and 8 MiB. (every file of `gen-fixtures all --max-size 100m`, incl. invalid/encoding/diff, × 6 queries × chunk sizes 64/65/127/4096/8 MiB: `counts_match_on_fixtures_up_to_100m`, release, 75 s; 10 MB of each kind in the normal suite; proptests also check stored order and full next/prev walks)
+- [x] Planted needles in `orders_2g.json` give exactly the counts in its manifest. (and `orders_min_2g.json`, case-sensitive and case-insensitive)
+- [x] 2 GB warm: case-sensitive count **< 1.5 s**; case-insensitive **< 3 s** (record in `docs/PERF.md`). (19–20 ms / 19–82 ms; 72–93 ms for the first search on a freshly mapped warm file)
+- [x] First result available in < 200 ms for a common word. (`email`: 4–13 ms)
+- [x] Cancel stops all workers within 50 ms. (0.05–8 ms on 2 GB; test `cancel_stops_all_workers_quickly` on 256 MiB in debug)
+- [x] `next_after` / `prev_before` are correct across the stored cap (test with cap = 10). (`next_prev_across_a_cap_of_ten` for every chunk size and arbitrary offsets; proptest/fuzz with caps 0, 1, 3/5, 10)
+- [x] Unicode case-insensitive: `ЁЛКА` finds `ёлка`; `ԱՐԵՎ` finds `արև`. (`արև` is spelled with the ligature `և`; handled by an explicit rule, ADR 023)
+
+**Quality gates (last run)**
+- [x] fmt · [x] clippy · [x] tests (234 passed, 0 failed, 8 ignored; the ignored big-file tests pass with `--ignored`) · [x] cargo deny · [x] benches (all within 10 % of step 08) · fuzz `search_any` 826,872 runs clean. Run 2026-11-27 on M3 Pro, macOS.
+
+**What was done**
+- `braceray_core::search::{start_search, SearchHandle, SearchQuery, SearchOptions, Scope, Match}`; `Error::{SearchQuery, SearchUnsupported}`; `Document: AsRef<[u8]>`.
+- Non-overlapping leftmost-first semantics, kept exact across chunk borders by stitching (a straddling match moves the chain's entry into the next chunk; the publisher rescans until the chains meet). Mutation check: removing the carry makes the proptest fail at once.
+- Results are stored up to 5 M (12 B each), with bounded memory for chunks still waiting to be published; beyond the cap the count stays exact and next/prev scan only the chunks around the offset.
+- Dev profile: `memchr`, `aho-corasick`, `regex-automata` at opt-level 3 so the search tests stay fast.
+
+**Known limitations / follow-ups**
+- API differs from the step file: no `Arc<Index>` argument and a `Result` return (ADR 023).
+- Regex and keys/values scope return `SearchUnsupported` until step 13.
+- `next_after` / `prev_before` only answer within the published part of the file, and beyond the cap they scan (≤ one 8 MiB chunk per call for normal data, more when no match is near), so the UI should call them on a worker when `is_capped()` (step 10).
+- Workers share the global rayon pool: a search started during an index build may wait for pool threads (I-014).
+- ASCII case-insensitive search doesn't fold the Kelvin sign `K` or the long s `ſ` to `k` / `s` (Aho-Corasick ASCII folding); non-ASCII queries use full Unicode simple folding.
+
+**Decisions** (also in docs/DECISIONS.md)
+- 023: engines, Armenian ligature rule, whole-word rule, chain stitching, capped store with memory budget, chain starts for navigation beyond the cap, API differences.
+
 ---
 
 ## Session log
@@ -494,6 +535,13 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-27 (5) · Step 09
+- Did: step 09 search engine end to end: engines (memmem / Aho-Corasick / Unicode regex + Armenian `և` rule), chunk chains stitched across borders, ordered publisher, capped store with memory budget, next/prev beyond the cap; proptest + fixture oracles, 2 GB test, fuzz target, bench. Found and fixed a test bug (an earlier search kept running and delayed the cancel check) and showed that the slow "first search after open" runs were page-cache evictions, not page faults.
+- Tests: 234 passed, 0 failed, 8 ignored (100 MB set and 2 GB tests pass with `--ignored`) · fmt/clippy/deny clean · benches within 10 % · fuzz `search_any` 826,872 runs clean
+- Commits: `feat: search engine core (step 09)` (see git log); not pushed
+- Next: Martin reviews step 09; then step 10 (search UI)
+
 
 ### 2026-11-27 (4) · Step 08
 - Did: step 08 raw view end to end. Core `pretty` (position-independent row layout, anchors, budgeted seek, rows backwards, original-mode rows, lexer), `goto`, `address_of`, fast line-table lookups. App: raw view next to the tree with sync both ways, selection + copy, Go to, focus per pane. Checked every criterion in the optimized app through egui-mcp (orders_min_2g thumb drag p99 7.2 ms, Go to line 12,345,678 on orders_2g, 200 MB string, deep and grouped sync); fixed four bugs found that way (click caret rounding, per-frame re-read of a selected 200 MB string, unbounded row cache when scrolling up, off-screen row rects).
@@ -570,4 +618,5 @@ Issues found during the build that are not fixed yet.
 | I-011 | 08 | Low | `index_build::cancel_returns_quickly` flakes (≈ 1 in 4 runs of the whole binary: 57–60 ms vs the 50 ms limit) because the binary's 10,000-case proptests load every core at the same time; passes alone. Reproduced on the step 07 commit. Fix: run it in its own test binary or under a lock with the proptests | 12 | Open |
 | I-012 | 08 | Low | Revealing a value tens of thousands of levels deep (raw click / Go to in `deep_100k`, depth 56,250) costs one 20–60 ms frame: `TreeModel::reveal` expands level by level on the UI thread, O(depth × segments). Fix: insert the whole chain of segments in one pass, or reveal on a worker | 12 | Open |
 | I-013 | 08 | Low | Tree and raw panes can't be hidden yet (architecture §7: "either can be hidden"); only the split is resizable. Add View toggles (toolbar + shortcuts) and persist them | 12 | Open |
+| I-014 | 09 | Medium | Search workers run on the global rayon pool, which the index build also uses. A search started while a 2 GB index builds may wait for pool threads (up to the build time) before its first result; seen in a test where one search's workers queued ~40 ms behind another's. Fix in step 10: a dedicated search pool (or a few dedicated threads), measured with "first result < 200 ms" during indexing | 10 | Open |
 | I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Open |

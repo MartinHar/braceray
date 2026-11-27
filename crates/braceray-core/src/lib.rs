@@ -11,6 +11,7 @@ pub mod job;
 mod mmap;
 pub mod nav;
 pub mod pretty;
+pub mod search;
 pub mod tree;
 
 pub use document::{Document, FileIdentity, Sniff};
