@@ -7,19 +7,20 @@
 //! Containers that the index doesn't store (adaptive mode) work the same way; their end
 //! is found with the SIMD classifier.
 
+mod cache;
+mod read;
 mod scan;
 
-use std::collections::HashMap;
-use std::ops::Range;
-use std::sync::{Arc, Mutex};
+pub use cache::{DEFAULT_CACHE_BUDGET, NavCache};
 
-use crate::index::{ContainerKind, Index, NO_PARENT, UNKNOWN_COUNT};
+use crate::index::{ContainerKind, Index, NO_PARENT, Node};
 
 /// Children between two checkpoints.
 pub const CHECKPOINT_EVERY: u64 = 1024;
 
-/// Default byte budget of the checkpoint cache.
-pub const DEFAULT_CACHE_BUDGET: usize = 256 << 20;
+/// Containers up to this many bytes are scanned on the spot by the `*_if_ready` calls
+/// (a few µs); bigger ones need [`Navigator::prepare`] first.
+pub const SYNC_SCAN_BYTES: u64 = 64 << 10;
 
 /// Id of a stored container (index into [`Index::nodes`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -115,21 +116,6 @@ pub struct Location {
     pub steps: Vec<(u64, Child)>,
 }
 
-#[derive(Debug)]
-struct Checkpoints {
-    /// Number of children found.
-    count: u64,
-    /// Offset of child `k × CHECKPOINT_EVERY` (before its leading whitespace is skipped).
-    starts: Vec<usize>,
-}
-
-#[derive(Debug, Default)]
-struct Cache {
-    map: HashMap<u64, (Arc<Checkpoints>, u64)>,
-    bytes: usize,
-    clock: u64,
-}
-
 /// Navigation over `bytes` (the document content) and its `index`.
 ///
 /// # Example
@@ -156,30 +142,61 @@ struct Cache {
 pub struct Navigator<'a> {
     bytes: &'a [u8],
     index: &'a Index,
-    cache: Mutex<Cache>,
-    budget: usize,
+    cache: CacheRef<'a>,
+}
+
+#[derive(Debug)]
+enum CacheRef<'a> {
+    Owned(NavCache),
+    Shared(&'a NavCache),
 }
 
 impl<'a> Navigator<'a> {
-    /// A navigator with the default cache budget.
+    /// A navigator with its own cache (default budget).
     pub fn new(bytes: &'a [u8], index: &'a Index) -> Self {
         Self::with_cache_budget(bytes, index, DEFAULT_CACHE_BUDGET)
     }
 
-    /// A navigator whose checkpoint cache uses at most about `budget` bytes.
+    /// A navigator with its own cache of at most about `budget` bytes.
     pub fn with_cache_budget(bytes: &'a [u8], index: &'a Index, budget: usize) -> Self {
         Navigator {
             bytes,
             index,
-            cache: Mutex::new(Cache::default()),
-            budget,
+            cache: CacheRef::Owned(NavCache::new(budget)),
         }
+    }
+
+    /// A navigator using a shared `cache` (cheap: borrows only). The cache must belong to
+    /// this `bytes` + `index` pair.
+    pub fn with_cache(bytes: &'a [u8], index: &'a Index, cache: &'a NavCache) -> Self {
+        Navigator {
+            bytes,
+            index,
+            cache: CacheRef::Shared(cache),
+        }
+    }
+
+    fn cache(&self) -> &NavCache {
+        match &self.cache {
+            CacheRef::Owned(c) => c,
+            CacheRef::Shared(c) => c,
+        }
+    }
+
+    /// The document bytes.
+    pub fn bytes(&self) -> &'a [u8] {
+        self.bytes
+    }
+
+    /// The index.
+    pub fn index(&self) -> &'a Index {
+        self.index
     }
 
     /// The top-level value, if there is one.
     pub fn root(&self) -> Option<Child> {
         let pos = scan::skip_ws(self.bytes, 0, self.bytes.len());
-        self.value_at(pos, self.bytes.len(), None)
+        self.value_at(pos, self.bytes.len(), None, None)
     }
 
     /// The top-level container (`None` for a top-level scalar or an empty document).
@@ -196,7 +213,7 @@ impl<'a> Navigator<'a> {
         };
         let node = self.node_starting_at(child.value.start);
         let end = match node {
-            Some(n) => self.index.nodes()[n.0 as usize].end(),
+            Some(n) => self.node(n).end(),
             None => child.value.end.saturating_sub(1),
         };
         Some(Container {
@@ -209,7 +226,7 @@ impl<'a> Navigator<'a> {
 
     /// The container of a stored node.
     pub fn container(&self, n: NodeRef) -> Container {
-        let node = &self.index.nodes()[n.0 as usize];
+        let node = self.node(n);
         Container {
             kind: node.kind(),
             start: node.start(),
@@ -218,45 +235,14 @@ impl<'a> Navigator<'a> {
         }
     }
 
+    fn node(&self, n: NodeRef) -> &Node {
+        &self.index.nodes()[n.0 as usize]
+    }
+
     /// Parent of a stored node.
     pub fn parent(&self, n: NodeRef) -> Option<NodeRef> {
-        let p = self.index.nodes()[n.0 as usize].parent();
+        let p = self.node(n).parent();
         (p != NO_PARENT).then_some(NodeRef(p))
-    }
-
-    /// Number of direct children.
-    pub fn child_count(&self, c: &Container) -> u64 {
-        if let Some(n) = c.node {
-            let count = self.index.nodes()[n.0 as usize].child_count();
-            if count != UNKNOWN_COUNT {
-                return u64::from(count);
-            }
-        }
-        self.checkpoints(c).count
-    }
-
-    /// Children `range` of `c` (clamped to the child count).
-    pub fn children(&self, c: &Container, range: Range<u64>) -> Vec<Child> {
-        let cps = self.checkpoints(c);
-        let end = range.end.min(cps.count);
-        if range.start >= end {
-            return Vec::new();
-        }
-        let k = (range.start / CHECKPOINT_EVERY) as usize;
-        let mut pos = cps.starts[k];
-        let mut idx = k as u64 * CHECKPOINT_EVERY;
-        let mut out = Vec::with_capacity((end - range.start) as usize);
-        while idx < end {
-            let Some((child, next)) = self.child_at(c, pos) else {
-                break;
-            };
-            if idx >= range.start {
-                out.push(child);
-            }
-            idx += 1;
-            pos = next;
-        }
-        out
     }
 
     /// The innermost value containing `offset` (see [`Location`]).
@@ -287,7 +273,7 @@ impl<'a> Navigator<'a> {
         let mut path = Vec::with_capacity(chain.len() + loc.steps.len());
         for pair in chain.windows(2).rev() {
             let (child, parent) = (pair[0], pair[1]);
-            let start = self.index.nodes()[child.0 as usize].start();
+            let start = self.node(child).start();
             if let Some((idx, c)) = self.child_containing(&self.container(parent), start) {
                 path.push(segment(idx, &c));
             }
@@ -325,148 +311,6 @@ impl<'a> Navigator<'a> {
             }
             id = n.parent();
         }
-    }
-
-    /// Child of `c` whose key or value contains `offset`, with its index.
-    fn child_containing(&self, c: &Container, offset: u64) -> Option<(u64, Child)> {
-        if offset <= c.start || offset >= c.end {
-            return None;
-        }
-        let cps = self.checkpoints(c);
-        let k = cps
-            .starts
-            .partition_point(|&s| s as u64 <= offset)
-            .checked_sub(1)?;
-        let mut pos = cps.starts[k];
-        let mut idx = k as u64 * CHECKPOINT_EVERY;
-        while idx < cps.count {
-            let (child, next) = self.child_at(c, pos)?;
-            let first = child.key.map_or(child.value.start, |k| k.start);
-            if offset < first {
-                return None; // between children
-            }
-            if offset < child.value.end {
-                return Some((idx, child));
-            }
-            idx += 1;
-            pos = next;
-        }
-        None
-    }
-
-    fn checkpoints(&self, c: &Container) -> Arc<Checkpoints> {
-        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
-        cache.clock += 1;
-        let clock = cache.clock;
-        if let Some((cps, used)) = cache.map.get_mut(&c.start) {
-            *used = clock;
-            return Arc::clone(cps);
-        }
-        drop(cache); // build without holding the lock
-        let cps = Arc::new(self.build_checkpoints(c));
-        let size = cps.starts.capacity() * std::mem::size_of::<usize>() + 64;
-        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
-        while cache.bytes + size > self.budget && !cache.map.is_empty() {
-            let oldest = cache
-                .map
-                .iter()
-                .min_by_key(|(_, (_, used))| *used)
-                .map(|(k, _)| *k);
-            if let Some(key) = oldest
-                && let Some((old, _)) = cache.map.remove(&key)
-            {
-                cache.bytes -= old.starts.capacity() * std::mem::size_of::<usize>() + 64;
-            }
-        }
-        cache.bytes += size;
-        cache.map.insert(c.start, (Arc::clone(&cps), clock));
-        cps
-    }
-
-    fn build_checkpoints(&self, c: &Container) -> Checkpoints {
-        let mut starts = Vec::new();
-        let mut count = 0u64;
-        let mut pos = c.start as usize + 1;
-        loop {
-            if count.is_multiple_of(CHECKPOINT_EVERY) {
-                starts.push(pos);
-            }
-            let Some((_, next)) = self.child_at(c, pos) else {
-                break;
-            };
-            count += 1;
-            pos = next;
-        }
-        starts.shrink_to_fit();
-        Checkpoints { count, starts }
-    }
-
-    /// Parses the child starting at or after `pos` inside `c`; returns it and the offset
-    /// after its trailing comma (or the container end).
-    fn child_at(&self, c: &Container, pos: usize) -> Option<(Child, usize)> {
-        let bytes = self.bytes;
-        let end = (c.end as usize).min(bytes.len());
-        let p = scan::skip_ws(bytes, pos, end);
-        if p >= end {
-            return None;
-        }
-        let (key, vpos) = match c.kind {
-            ContainerKind::Object => {
-                if bytes[p] != b'"' {
-                    return None;
-                }
-                let key_end = scan::string_end(bytes, p, end)?;
-                let colon = scan::skip_ws(bytes, key_end, end);
-                if colon >= end || bytes[colon] != b':' {
-                    return None;
-                }
-                (
-                    Some(Span::new(p, key_end)),
-                    scan::skip_ws(bytes, colon + 1, end),
-                )
-            }
-            ContainerKind::Array => (None, p),
-        };
-        let child = self.value_at(vpos, end, key)?;
-        let after = scan::skip_ws(bytes, child.value.end as usize, end);
-        let next = if after < end && bytes[after] == b',' {
-            after + 1
-        } else {
-            end
-        };
-        Some((child, next))
-    }
-
-    /// The value starting at `pos` (bounded by `end`).
-    fn value_at(&self, pos: usize, end: usize, key: Option<Span>) -> Option<Child> {
-        let bytes = self.bytes;
-        let first = *bytes.get(pos).filter(|_| pos < end)?;
-        let (kind, value_end) = match first {
-            b'{' | b'[' => {
-                let kind = if first == b'{' {
-                    ValueKind::Object
-                } else {
-                    ValueKind::Array
-                };
-                let stop = match self.node_starting_at(pos as u64) {
-                    Some(n) => {
-                        let node_end = self.index.nodes()[n.0 as usize].end() as usize;
-                        (node_end + 1).min(end)
-                    }
-                    None => scan::container_end(bytes, pos, end).unwrap_or(end),
-                };
-                (kind, stop)
-            }
-            b'"' => (ValueKind::String, scan::string_end(bytes, pos, end)?),
-            b't' | b'f' => (ValueKind::Bool, scan::scalar_end(bytes, pos, end)),
-            b'n' => (ValueKind::Null, scan::scalar_end(bytes, pos, end)),
-            _ => (ValueKind::Number, scan::scalar_end(bytes, pos, end)),
-        };
-        Some(Child {
-            key,
-            value: Span::new(pos, value_end),
-            kind,
-        })
     }
 }
 

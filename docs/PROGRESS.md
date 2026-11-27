@@ -12,9 +12,9 @@
 | Field | Value |
 |---|---|
 | **Current step** | 07 — Tree view |
-| **Status** | ⬜ Not started |
-| **Current sub-task** | — |
-| **Next action** | Start step 07 (tree view) |
+| **Status** | 🟦 In progress |
+| **Current sub-task** | 7b: app tree view (`ui/tree.rs`) |
+| **Next action** | Tree state per tab, virtualized rows, prepare jobs, keyboard, context menu |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -37,7 +37,7 @@
 | 04 | Structural index & validation | MVP | ✅ | 2026-11-25 | 2026-11-25 | eac9cbd, 1c02d57, 16b7adc, 4d commit |
 | 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | bbc18fb |
 | 06 | App shell | MVP | ✅ | 2026-11-27 | 2026-11-27 | eccc3e5, 509580d |
-| 07 | Tree view | MVP | ⬜ | | | |
+| 07 | Tree view | MVP | 🟦 | 2026-11-27 | | |
 | 08 | Raw text view | MVP | ⬜ | | | |
 | 09 | Search engine (core) | MVP | ⬜ | | | |
 | 10 | Search UI | MVP | ⬜ | | | |
@@ -387,6 +387,36 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 015: `JobHandle<P, T>` on a dedicated thread, panic → `JobPanicked`, drop cancels.
 - 016: settings JSON file (not eframe persistence), rfd async + pollster, what runs off the UI thread, no emoji fonts, debug-only inspection, test hook.
 - 017: macOS "Open With" deferred to step 12.
+
+### Step 07 — Tree view
+**Status:** 🟦 In progress · **Started:** 2026-11-27 · **Finished:** —
+
+**Plan**
+- [x] 7a core `nav`: shareable `NavCache` (checkpoint cache usable from the UI thread and workers), non-blocking `children_if_ready` / `child_count_if_ready` (cheap sync path for small containers), cancellable `prepare`
+- [x] 7a core `tree`: `TreeModel` with `Vec<Segment>` rows (the "RowSpan" variant of the spec), groups (nested above group_size²), expand / collapse / parent / address (child-index path) / reveal / rebuild; `rows(first, n)`; unit tests vs serde walks + proptest
+- [x] 7a core `tree::preview`: index of the first few MB for preview mode (same model, same offsets)
+- [x] 7a bench `rows_for_viewport` on a 10M-child array; checkpoint build time on `orders_2g.json`
+- [ ] 7b app: `ui/tree.rs` virtualized rows (`show_rows`), row painting (colours per type, counts, badges, lossy UTF-8), selection + keyboard (↑↓←→ Home End PgUp PgDn `*` Enter), context menu (copy key / value with size guard; path + raw view hooks), background checkpoint jobs with loading rows
+- [ ] 7b app: preview mode while indexing ("Preview: indexing… 37 %"), switch to the real index keeping expanded state + selection
+- [ ] 7b app: system font fallbacks for Armenian / CJK / emoji (loaded off the UI thread)
+- [ ] 7b app: debug overlay `Ctrl+Shift+D` with frame times (p50 / p99 / max)
+- [ ] 7c kittest: expand/collapse by click and keyboard, group rows > 1000 children, selection moves, context menu copy
+- [ ] 7c manual / egui-mcp: orders_2g, prim_array_10m, wide_1m, deep_100k, Unicode, frame times; docs (PERF, DECISIONS, CHANGELOG)
+
+**Acceptance criteria** (copied from the step file)
+- [ ] `orders_2g.json`: expanding the root array (millions of elements, grouped) takes **< 200 ms**.
+- [ ] `prim_array_10m.json` and `wide_1m.json`: expand in < 200 ms; scrolling to the end is smooth.
+- [ ] Scrolling with the mouse wheel and dragging the scrollbar from top to bottom of a fully expanded big array: frames stay < 16 ms (log frame times in debug overlay `Ctrl+Shift+D`).
+- [ ] `deep_100k.json`: expanding 100,000 levels by keyboard works without stack overflow.
+- [ ] Preview mode shows content within 1 s of opening the 2 GB file.
+- [ ] Unicode keys and values render correctly (Armenian, Cyrillic, CJK, emoji); invalid UTF-8 inside strings renders with � and never panics.
+- [ ] All keyboard shortcuts work; context menu actions work.
+
+**Progress notes**
+- 7a done: `nav::NavCache` (shared checkpoint LRU + per-container read cursor), `children_if_ready` / `child_count_if_ready` / `is_ready` / `prepare(cancel)`; galloping node lookup while walking children: `orders_2g` root (2.45 M children) checkpoint build 295 ms → ~110 ms warm (first touch after a cache load: ~3 s of page faults, hence a worker + loading rows). `tree::TreeModel` (segments, nested groups, expand / collapse / toggle / parent / address / reveal / expansions + restore / expand_all) and `tree::preview::Preview`. Oracle proptests (rows, addresses, parents, ranges, restore, other group size, reveal, preview → full) pass with 5,000 cases. Bench: `rows_for_viewport_50` on 10 M children 4.9 µs, expand root 68 ns; deep 100k by "→" 26 ms in total.
+
+**Quality gates (last run)**
+- [ ] fmt · [ ] clippy · [ ] tests · [ ] cargo deny · [ ] benches
 
 ---
 
