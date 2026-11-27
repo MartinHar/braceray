@@ -14,7 +14,7 @@
 | **Current step** | 11 — Breadcrumbs & copy |
 | **Status** | ⬜ Not started |
 | **Current sub-task** | — |
-| **Next action** | Martin reviews step 10 (and answers the debounce question); then start step 11 |
+| **Next action** | Start step 11 (breadcrumbs & copy) |
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -24,7 +24,7 @@
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
 - [x] 2026-11-27 · Step 05 · `directories` depends on `option-ext` (MPL-2.0, not on the allow-list) · Resolved: Martin chose to keep the std-only folder lookup (ADR 014); no `directories`, no MPL exception
 - [x] 2026-11-27 · Step 06 · Installing `egui_mcp` was blocked by Claude Code's permission policy · Resolved: Martin installed it (binary `egui-mcp`); driven over stdio JSON-RPC. Register with `claude mcp add egui -- egui-mcp` to get the tools natively
-- [ ] 2026-11-27 · Step 10 · "First results < 200 ms" is met from the search start (17–35 ms), but from the keystroke it is 150 ms debounce + 1–2 frames ≈ 170–220 ms · Is measuring from the search start OK, or should the debounce go down (e.g. 100 ms) so it holds from the keystroke too? Not blocking
+- [x] 2026-11-27 · Step 10 · "First results < 200 ms" is met from the search start (17–35 ms), but from the keystroke it is 150 ms debounce + 1–2 frames ≈ 170–220 ms · Is measuring from the search start OK, or should the debounce go down (e.g. 100 ms) so it holds from the keystroke too? Not blocking · Resolved: Martin checked the app ("all looks good"); the 150 ms debounce stays
 <!-- Format: - [ ] YYYY-MM-DD · Step NN · question or blocker · what you need from me -->
 
 ---
@@ -576,6 +576,10 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-27 (7) · Step 10 review
+- Martin checked step 10 in the app ("all looks good"); the 150 ms debounce stays. Step stays ⚠️ only for the real-Windows shortcut check (I-015, step 12)
+- Next: step 11 (breadcrumbs & copy)
 
 ### 2026-11-27 (6) · Step 10
 - Did: step 10 search UI end to end: core search pool (I-014), `matches_in`, `SearchNav`, JSONPath formatting + serde-walk oracle; app search bar, per-tab search state, results panel, raw highlights, tree markers, status, shortcuts, history, copy all paths. Checked in the optimized app on `orders_2g.json` through egui-mcp (counts, jumps first/middle/last/beyond the 5 M cap, 2.45 M-row list p99 4.5 ms) and with a 60 fps harness for first-result timing. Fixed three things found that way (horizontal reveal, preview whitespace, missing glyph).
