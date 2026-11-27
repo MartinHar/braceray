@@ -38,7 +38,7 @@
 | 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | bbc18fb |
 | 06 | App shell | MVP | ✅ | 2026-11-27 | 2026-11-27 | eccc3e5, 509580d |
 | 07 | Tree view | MVP | ✅ | 2026-11-27 | 2026-11-27 | fe313f8, e202057 |
-| 08 | Raw text view | MVP | ✅ | 2026-11-27 | 2026-11-27 | ebda464 (8a), see git log (8b) |
+| 08 | Raw text view | MVP | ✅ | 2026-11-27 | 2026-11-27 | ebda464 (8a), d4c6a23 (8b) |
 | 09 | Search engine (core) | MVP | ⬜ | | | |
 | 10 | Search UI | MVP | ⬜ | | | |
 | 11 | Breadcrumbs & copy | MVP | ⬜ | | | |
@@ -498,7 +498,7 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 ### 2026-11-27 (4) · Step 08
 - Did: step 08 raw view end to end. Core `pretty` (position-independent row layout, anchors, budgeted seek, rows backwards, original-mode rows, lexer), `goto`, `address_of`, fast line-table lookups. App: raw view next to the tree with sync both ways, selection + copy, Go to, focus per pane. Checked every criterion in the optimized app through egui-mcp (orders_min_2g thumb drag p99 7.2 ms, Go to line 12,345,678 on orders_2g, 200 MB string, deep and grouped sync); fixed four bugs found that way (click caret rounding, per-frame re-read of a selected 200 MB string, unbounded row cache when scrolling up, off-screen row rects).
 - Tests: 207 passed, 0 failed, 6 ignored · fmt/clippy/deny clean · benches within 10 % · fuzz `pretty_range` 502,697 runs clean. Pre-existing flake `cancel_returns_quickly` seen once (I-011, also on the step 07 commit)
-- Commits: ebda464 (8a core), 8b app + docs (see git log); not pushed
+- Commits: ebda464 (8a core), d4c6a23 (8b app + docs); not pushed
 - Next: Martin reviews step 08; then step 09 (search engine)
 
 ### 2026-11-27 (3) · Step 07
