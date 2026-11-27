@@ -37,7 +37,7 @@
 | 04 | Structural index & validation | MVP | ✅ | 2026-11-25 | 2026-11-25 | eac9cbd, 1c02d57, 16b7adc, 4d commit |
 | 05 | Index cache | MVP | ✅ | 2026-11-27 | 2026-11-27 | bbc18fb |
 | 06 | App shell | MVP | ✅ | 2026-11-27 | 2026-11-27 | eccc3e5, 509580d |
-| 07 | Tree view | MVP | ✅ | 2026-11-27 | 2026-11-27 | fe313f8 + 7b commit |
+| 07 | Tree view | MVP | ✅ | 2026-11-27 | 2026-11-27 | fe313f8, e202057 |
 | 08 | Raw text view | MVP | ⬜ | | | |
 | 09 | Search engine (core) | MVP | ⬜ | | | |
 | 10 | Search UI | MVP | ⬜ | | | |
@@ -450,7 +450,7 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 ### 2026-11-27 (3) · Step 07
 - Did: step 07 tree view end to end. Core: shared `NavCache`, non-blocking child reads + `prepare` jobs, galloping lookup (2 GB root table 295 → 110 ms), `tree` row model (segments, nested groups, addresses, restore) and preview index. App: virtual tree list with own f64 scroll, colours, groups, keyboard, context menu, preview while indexing, debug overlay. Checked every criterion in the opt-level 3 app through egui-mcp (2 GB preview rows in 134 ms, 10 M-row scrolling ≤ 1.2 ms frames, deep 100k, Unicode light/dark).
 - Tests: 174 passed, 0 failed, 5 ignored · fmt/clippy/deny clean · benches within 10 %
-- Commits: fe313f8 (7a core), 7b commit (see git log); not pushed
+- Commits: fe313f8 (7a core), e202057 (7b app); not pushed
 - Next: Martin reviews step 07; then step 08 (raw view)
 
 ### 2026-11-27 (2) · Step 06
