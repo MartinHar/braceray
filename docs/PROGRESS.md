@@ -18,7 +18,7 @@
 | **Last updated** | 2026-11-27 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
-| **CI on `main`** | Run 45650452101 (commit a3a1b0a): Windows ✅ macOS ✅ Linux ✅ deny ✅ |
+| **CI on `main`** | Run 46037886367 (commit b70d2df): Windows ✅ macOS ✅ Linux ✅ deny ✅ |
 
 ## Blockers / questions for Martin
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
@@ -579,6 +579,8 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 
 ### 2026-11-27 (7) · Step 10 review
 - Martin checked step 10 in the app ("all looks good"); the 150 ms debounce stays. Step stays ⚠️ only for the real-Windows shortcut check (I-015, step 12)
+- Pushed steps 04–10. CI run 46036432255 failed on Windows and Linux: `clippy::large_enum_variant` (x86's `memmem::Finder` is ~288 bytes, small on aarch64). Boxed it (b70d2df); run 46037886367 green on all 3 OSes. Two security-review fixes for the "Copy all paths" temp file (O_EXCL, mode 0600)
+- Lesson: before pushing, run `cargo clippy --target x86_64-apple-darwin` (and `-p braceray-core --lib --target x86_64-pc-windows-msvc`) to catch x86-only lints
 - Next: step 11 (breadcrumbs & copy)
 
 ### 2026-11-27 (6) · Step 10
