@@ -12,6 +12,10 @@ description = "Read-only desktop viewer for huge JSON files"
 name = "braceray"
 path = "src/main.rs"
 
+[features]
+# Heap counter for memory measurements (step 12, ADR 027). Off by default; not in releases.
+alloc-stats = []
+
 [dependencies]
 braceray-core = { version = "0.0.0", path = "../braceray-core" }
 eframe.workspace = true

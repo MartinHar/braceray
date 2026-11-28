@@ -6,8 +6,14 @@ use std::path::PathBuf;
 use braceray_app::{AppConfig, BracerayApp, crash};
 use eframe::egui;
 
+#[cfg(not(feature = "alloc-stats"))]
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+/// Same allocator plus heap counters (measurement builds only, ADR 027).
+#[cfg(feature = "alloc-stats")]
+#[global_allocator]
+static GLOBAL: braceray_app::alloc_stats::Counting = braceray_app::alloc_stats::Counting;
 
 /// Default address of the debug inspection server (egui_mcp connects here).
 #[cfg(debug_assertions)]
@@ -26,6 +32,17 @@ fn main() -> eframe::Result {
     if args.iter().any(|a| a == crash::CRASH_TEST_FLAG) {
         panic!("crash test requested with {}", crash::CRASH_TEST_FLAG);
     }
+
+    #[cfg(feature = "alloc-stats")]
+    std::thread::spawn(|| {
+        // Measurement builds (ADR 027) log the heap every 2 s for scripted runs.
+        loop {
+            if let Some((live, peak)) = braceray_app::alloc_stats::heap() {
+                eprintln!("alloc-stats: heap {live} B, peak {peak} B");
+            }
+            std::thread::sleep(std::time::Duration::from_secs(2));
+        }
+    });
 
     // `braceray [file]`: the first argument that isn't a flag is opened.
     let file: Option<PathBuf> = args

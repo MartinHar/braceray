@@ -94,6 +94,7 @@ Fill in with real measurements (details and machine info in `docs/PERF.md`). Mar
 | `$..price` JSONPath (2 GB) | < 5 s | | | 14 | — |
 | Expand 1M-child node | < 200 ms | < 0.01 ms in the app (groups); 10M array 56 ns bench; deep group children ~110 ms warm in the background | M3P | 07 | ✅ |
 | Scrolling p99 frame time | < 16 ms | tree: p99 0.94 ms, max 1.15 ms (10 M rows, drag); raw view: thumb drag on `orders_min_2g` CPU frame p99 7.2 / max 15.4 ms, paging p99 8.8 ms, 200 MB string p99 10.7 ms; results list (2.45 M rows) p99 4.5 / max 6.0 ms | M3P | 07/08/10 | ✅ |
+| App memory excl. mapped file | < 300 MB + index | 476 MB with a 471 MB index (≈ 5 MB besides it), peak 979 MB during the build; 5 MB re-opened from cache (`alloc-stats` build) | M3P | 12 | ✅ |
 | Index memory (% of file) | ≤ 25 % | 21.9 % (pretty) / 4.2 % (minified, adaptive) | M3P | 04 | ✅ |
 | Diff 2 × 1 GB, warm | < 30 s | | | 18 | — |
 
@@ -612,7 +613,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 12a performance
   - [x] `gen-fixtures bench-big`: generate the 2 GB fixtures if missing; open → first content, full index (warm, cold with `--cold`), index memory, re-open from cache, search cs / ci (rare + common), first result, expand root, peak RSS; Markdown rows for PERF.md, ✅/❌ vs overview.md, non-zero exit on a miss
   - [x] Run it on M3P (both 2 GB files): every measured target met; cold needs root (Martin: `sudo` run, optional)
-  - [ ] "App memory excluding the mapped file < 300 MB + index": not measurable yet (I-008) — needs a heap number in the app
+  - [x] "App memory excluding the mapped file < 300 MB + index": `alloc-stats` measurement build (ADR 027): 476 MB steady with a 471 MB index, 979 MB peak while building, 5 MB from cache ✅
   - [ ] Frame-time check of tree / raw / results on the 2 GB file with the overlay (`Ctrl+Shift+D`, exists since step 07: p50 / p99 / max over 600 frames) — re-check in the release build
 - 12b robustness
   - [x] Fuzz all targets ≥ 10 min each (`index_any_bytes`, `search_any`, `pretty_range`; `jsonpath_parse` comes with step 14); fix crashes, add inputs to the corpus
@@ -646,7 +647,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 
 **What was done**
 - 12a: `gen-fixtures bench-big` (`tools/fixtures/src/bench_big/`); first run on M3P recorded in PERF.md (all measured targets ✅).
-- 12b: `crash` module (panic hook, crash log, dialog process, prefilled issue URL; ADR 026); unit tests + `tests/crash.rs` runs the binary with `--crash-test`; dialog checked on macOS.
+- 12b: `alloc_stats` measurement feature (ADR 027, Martin OK'd the `unsafe`), heap numbers in PERF.md. `crash` module (panic hook, crash log, dialog process, prefilled issue URL; ADR 026); unit tests + `tests/crash.rs` runs the binary with `--crash-test`; dialog checked on macOS.
 
 ---
 
@@ -756,7 +757,7 @@ Issues found during the build that are not fixed yet.
 | I-004 | 04 | Low | x86 speed only measured under Rosetta; measure `fast_index_2g` on a real Windows x64 machine (reference machine B) | 12 | Open |
 | I-005 | 05 | Low | `index_100m/scalar_index` (the reference oracle only) runs at 139–147 ms or 270–300 ms for identical source depending on the build path: code-alignment sensitivity of its byte loop. Production builders are unaffected. Possible fix: `-C llvm-args=-align-loops=64` for benches, or restructure the loop if it ever matters | 12 | Open |
 | I-007 | 06 | Low | macOS "Open With" / double-click: winit 0.30 doesn't forward `application:openURLs:`; needs an objc2 app delegate (unsafe) and a bundled `.app` (ADR 017) | 12 | Open |
-| I-008 | 06 | Low | Status-bar memory shows the resident set, which includes mapped file and cache pages (2.24 GB right after building a 2 GB index). Show heap/private memory instead to match the "app memory excluding the mapped file" target | 12 | Open |
+| I-008 | 06 | Low | Status-bar memory shows the resident set, which includes mapped file and cache pages (2.24 GB right after building a 2 GB index). Show heap/private memory instead to match the "app memory excluding the mapped file" target | 12 | Resolved (step 12: heap measured with the `alloc-stats` build, ADR 027; normal builds keep the resident set with a tooltip that explains it) |
 | I-009 | 07 | Low | Adaptive mode (e.g. `orders_min_2g`, depth ≤ 1 stored): reading a record whose children include a big unstored container finds its end with a SIMD scan on the UI thread, and counts of unstored containers > 64 KiB show `{…}` until expanded. Fine for typical records; a record holding a 100 MB+ nested array would stall a frame. Fix: do that scan in the prepare job, or store such containers in the index | 12 | Open |
 | I-010 | 07 | Low | Rare app test flakes: in ~50 `cargo test` runs, once `open_shows_progress_then_done_and_cancel_works` hit the 20 s `step_until` timeout (which wait wasn't captured) and once `settings_round_trip_through_the_window` didn't find "Cache indexes on disk" (under an artificial all-cores load). Not reproduced in 40 further loaded runs of `shell` + `tree`. Check again when CI runs tests | 12 | Open |
 | I-011 | 08 | Low | `index_build::cancel_returns_quickly` flakes (≈ 1 in 4 runs of the whole binary: 57–60 ms vs the 50 ms limit) because the binary's 10,000-case proptests load every core at the same time; passes alone. Reproduced on the step 07 commit. Fix: run it in its own test binary or under a lock with the proptests | 12 | Resolved (step 12: own binary `tests/index_cancel.rs`; 3/3 green while 3 fuzzers ran) |

@@ -45,8 +45,14 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Clippy + test (alloc-stats measurement build)
+        if: runner.os == 'Linux'
+        run: |
+          cargo clippy -p braceray-app --all-targets --features alloc-stats -- -D warnings
+          cargo test -p braceray-app --features alloc-stats --lib alloc_stats
+
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --workspace --no-fail-fast
 
       - name: Release build
         run: cargo build --release -p braceray-app

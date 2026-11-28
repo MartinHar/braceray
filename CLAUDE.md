@@ -30,7 +30,7 @@ Specs live in `docs/specs/`. Always read `docs/specs/overview.md` and `docs/spec
 
 ## Code rules
 - Workspace layout per `architecture.md` §2. `braceray-core` has **no UI dependencies** and is fully unit-testable.
-- `unsafe` is allowed only in `braceray-core::{mmap, index::simd, search}`. Every `unsafe` block has a `// SAFETY:` comment and a test that covers it.
+- `unsafe` is allowed only in `braceray-core::{mmap, index::simd, search}`, plus `braceray-app::alloc_stats` behind the off-by-default `alloc-stats` measurement feature (ADR 027, Martin's OK 2026-11-28). Every `unsafe` block has a `// SAFETY:` comment and a test that covers it.
 - Errors: `thiserror` enums in core, `anyhow` in the app. No `unwrap()`/`expect()` in non-test code except for true invariants (comment why).
 - No panics on bad input. Invalid JSON, truncated files, binary garbage, empty files and UTF-16 files must give a clear message, never a crash.
 - Public core APIs get rustdoc comments with an example.

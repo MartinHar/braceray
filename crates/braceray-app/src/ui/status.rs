@@ -30,11 +30,28 @@ pub fn show(ui: &mut egui::Ui, tab: Option<&OpenDocument>, memory: Option<u64>) 
             ui.label(RichText::new("No file open").small().weak());
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if let Some((live, peak)) = crate::alloc_stats::heap() {
+                ui.label(
+                    RichText::new(format!(
+                        "Heap {} (peak {})",
+                        format::bytes(live),
+                        format::bytes(peak)
+                    ))
+                    .small()
+                    .weak(),
+                )
+                .on_hover_text("alloc-stats build: heap bytes, mapped file and cache excluded");
+            }
             if let Some(m) = memory {
                 ui.label(
                     RichText::new(format!("Memory {}", format::bytes(m)))
                         .small()
                         .weak(),
+                )
+                .on_hover_text(
+                    "Resident memory of the process. It includes the pages of the open \
+                     files and index cache entries the OS has read into memory, which \
+                     it can drop again when other apps need the space.",
                 );
             }
         });
