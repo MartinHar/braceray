@@ -13,8 +13,8 @@
 |---|---|
 | **Current step** | 12 — MVP hardening & release v0.1.0 |
 | **Status** | 🟦 In progress |
-| **Current sub-task** | 12b robustness |
-| **Next action** | 12b: open every catalogue fixture via egui-mcp; close tabs during index / search / copy (memory back to baseline); modify file during indexing |
+| **Current sub-task** | 12b robustness (backlog items left), then 12c branding |
+| **Next action** | 12b: decide the backlog items planned for step 12 with Martin (I-007, I-009, I-012/I-016, I-013, I-017, I-018); then 12c icon + About |
 | **Last updated** | 2026-11-28 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -618,8 +618,8 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 12b robustness
   - [x] Fuzz all targets ≥ 10 min each (`index_any_bytes`, `search_any`, `pretty_range`; `jsonpath_parse` comes with step 14); fix crashes, add inputs to the corpus
   - [x] Panic hook: crash log in the config dir + dialog "Braceray hit a bug. Log saved to … [Open issue on GitHub]" (prefilled issue URL, nothing sent)
-  - [ ] Open every catalogue fixture (encoding, `invalid_*`, 5 GB sparse) through the UI via egui-mcp: no panics, clear messages
-  - [ ] Close a tab during indexing / search / copy: memory back to baseline, no panics; modify the file during indexing → reload banner
+  - [x] Open every catalogue fixture (encoding, `invalid_*`, 5 GB sparse) through the UI via egui-mcp: no panics, clear messages (36 files: all 9 encoding cases, 13 `invalid_*` incl. the 1 GB "error at the end", 5 GiB sparse, deep / wide / prim / huge string, orders 10m / 2g pretty + minified, NDJSON, diff; "Open anyway" shows the valid prefix)
+  - [x] Close a tab during indexing / search / copy: memory back to baseline, no panics; modify the file during indexing → reload banner. Heap back to 6.6 MB (`alloc-stats`); RSS can keep up to ~1 index of freed allocator pages for a while but doesn't grow over open/close cycles (I-017). Append / overwrite / delete → banner + Reload; **truncate crashed with SIGBUS → fixed with a SIGBUS guard (ADR 028)**
   - [x] CI runs `cargo test` again + generates the 100 MB fixture set (I-001, I-002); fix the known test flakes (I-011 ✅; I-010 not seen in CI so far). Fixed on the way: job repaint race, Windows `\` paths and 100 ns mtimes, search `wait_jump` returning before the tree reveal, cancel headroom on CI
   - [ ] Open backlog items planned for step 12 (I-007 macOS Open With, I-008, I-009, I-012/I-016, I-013 pane toggles): fix or move to a later step with Martin's OK
 - 12c branding
@@ -643,10 +643,11 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [ ] `CHANGELOG.md` has a `[0.1.0]` section.
 
 **Quality gates (last run)**
-- [x] fmt · [x] clippy (also x86_64 macOS / Windows core, and `--features alloc-stats`) · [x] tests (296 passed, 0 failed, 9 ignored; CI green on 3 OSes) · [x] cargo deny · [ ] benches. Run 2026-11-28 on M3 Pro, macOS.
+- [x] fmt · [x] clippy (also x86_64 macOS / Windows core) · [x] tests (300 passed, 0 failed, 9 ignored) · [x] cargo deny · [x] benches (`--quick`: all within 10 % except `cache_store`, the known noisy file-write bench: 11 ms, reruns 9–50 ms; the guard isn't on its path). Run 2026-11-28 on M3 Pro, macOS; Linux build of the guard only checked by CI.
 
 **What was done**
 - 12a: `gen-fixtures bench-big` (`tools/fixtures/src/bench_big/`); first run on M3P recorded in PERF.md (all measured targets ✅).
+- 12b UI pass (egui-mcp, optimized debug build, scratch HOME): every catalogue fixture opened; tab closed at 0.3 / 1 / 2.5 s of indexing, during a 73 M-match search and during 900 MB raw / pretty copies (no panic, heap to baseline); file appended / overwritten / deleted / truncated during and after indexing. Found and fixed: SIGBUS on truncation (`mmap::guard`, ADR 028).
 - 12b: `alloc_stats` measurement feature (ADR 027, Martin OK'd the `unsafe`), heap numbers in PERF.md. `crash` module (panic hook, crash log, dialog process, prefilled issue URL; ADR 026); unit tests + `tests/crash.rs` runs the binary with `--crash-test`; dialog checked on macOS.
 
 ---
@@ -661,6 +662,12 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-28 (3) · Step 12
+- Did: 12b UI robustness through egui-mcp (Python stdio driver, opt-level 3 debug build, scratch HOME): all catalogue fixtures (36) give clear messages, no panics; close tab during index / search / copy (heap to baseline; RSS retention I-017); file modified during indexing. Truncation crashed the app with SIGBUS (the macOS "quit unexpectedly" dialog Martin saw) → SIGBUS guard in `mmap` (ADR 028), re-checked in the app. New backlog: I-017, I-018. A stray "Copied 2 B" notice appeared once in a scripted run and didn't reproduce in 3 reruns
+- Tests: 300 passed, 0 failed, 9 ignored · fmt/clippy/deny clean
+- Commits: see git log (`fix: survive files truncated while mapped (SIGBUS guard)`); not pushed
+- Next: Martin: backlog items for step 12 (keep / move); then 12c branding
 
 ### 2026-11-28 (2) · Step 12
 - Did: started step 12. `gen-fixtures bench-big` (all measured MVP targets ✅ on M3P, PERF.md); crash handler (log + dialog process + prefilled issue, ADR 026); fuzzed 3 targets 11 min each, 0 crashes; I-011 fixed (own test binary); `alloc-stats` heap counter (ADR 027, Martin OK'd the `unsafe` as measurement-only): 476 MB with a 471 MB index, 5 MB from cache; CI runs tests again + fixtures/bench job (I-001, I-002, I-006 resolved)
@@ -773,4 +780,6 @@ Issues found during the build that are not fixed yet.
 | I-015 | 10 | Low | Search shortcuts (Ctrl+F, Ctrl+Shift+F, F3/Shift+F3, Enter/Shift+Enter, Esc) checked on macOS and in kittests with egui told it runs on Windows, but not on a real Windows machine | 12 | Open |
 | I-014 | 09 | Medium | Search workers run on the global rayon pool, which the index build also uses. A search started while a 2 GB index builds may wait for pool threads (up to the build time) before its first result; seen in a test where one search's workers queued ~40 ms behind another's. Fix in step 10: a dedicated search pool (or a few dedicated threads), measured with "first result < 200 ms" during indexing | 10 | Resolved (step 10: own search pool; first result 17–35 ms during a 2 GB build) |
 | I-016 | 11 | Low | Copy path (button, menu, Ctrl/Cmd+Shift+C) of a value tens of thousands of levels deep builds the path on the UI thread, O(depth) row reads: one ~17 ms frame at depth 56,250 (`deep_100k`). Fix: build the path from the address on a worker, together with I-012 | 12 | Open |
+| I-017 | 12 | Low | After closing a tab, the heap returns to baseline but mimalloc may keep up to ~1 index of freed pages resident (e.g. 466–960 MB after closing a freshly built 2 GB tab; 22–735 MB over 4 open/close cycles, not growing). Pages freed across threads stay with idle rayon workers. Fix if wanted: `mi_collect(true)` on every pool thread (`rayon::broadcast`) after a close — needs an `unsafe` FFI call outside the allowed modules (Martin's OK) | 12 | Open |
+| I-018 | 12 | Low | A file with an early error still gets fully scanned before the error shows: 5 GiB sparse file (`[]` + spaces + zeros, error at byte 8,194) takes 6 s and touches 3.8 GB of zero pages. The parallel builder could stop the other chunks once an earlier chunk has failed | 12 | Open |
 | I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Resolved (step 12: `tests/cache.rs` passes on the Windows runner) |

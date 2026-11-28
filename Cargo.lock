@@ -617,6 +617,7 @@ dependencies = [
  "bytemuck",
  "criterion",
  "gen-fixtures",
+ "libc",
  "memchr",
  "memmap2",
  "memory-stats",

@@ -244,3 +244,37 @@ fn mtime_is_recorded() {
         .unwrap_or(Duration::ZERO);
     assert!(age < Duration::from_secs(60));
 }
+
+/// A file truncated while it's mapped: indexing the old length reads zeros past the new
+/// end instead of crashing with SIGBUS, and the document reports the change (ADR 028).
+#[cfg(unix)]
+#[test]
+fn truncated_while_mapped_reads_zeros_and_reports_change() {
+    use braceray_core::index::{IndexOptions, build_index};
+    use braceray_core::{CancelToken, Progress};
+    let dir = tempfile::tempdir().unwrap();
+    let mut body = b"[".to_vec();
+    while body.len() < 4 << 20 {
+        body.extend_from_slice(br#"{"a":1,"b":"text"},"#);
+    }
+    body.extend_from_slice(b"0]");
+    let path = write_temp(&dir, "t.json", &body);
+    let doc = Document::open(&path).unwrap();
+    assert!(!doc.has_changed_on_disk());
+    OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_len(4096)
+        .unwrap();
+    let index = build_index(
+        &doc,
+        &IndexOptions::default(),
+        &CancelToken::new(),
+        &Progress::default(),
+    )
+    .unwrap();
+    assert!(!index.is_valid(), "zeros past the cut are not JSON");
+    assert_eq!(doc.len(), body.len() as u64, "the mapping keeps its length");
+    assert!(doc.has_changed_on_disk());
+}

@@ -142,8 +142,13 @@ impl Document {
     }
 
     /// `true` if the file's size or mtime differs from the values recorded at open time,
-    /// or the file can't be found any more. Reads metadata only.
+    /// or the file can't be found any more, or a read already hit a part of the mapping the
+    /// file no longer backs (truncated while open; those bytes read as zeros). Reads
+    /// metadata only.
     pub fn has_changed_on_disk(&self) -> bool {
+        if self.map.faulted() {
+            return true;
+        }
         match fs::metadata(&self.identity.canonical_path) {
             Ok(meta) => {
                 meta.len() != self.identity.size || meta.modified().ok() != self.identity.mtime

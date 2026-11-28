@@ -168,4 +168,4 @@ enum JobEvent<T> { Partial(T), Done(T), Failed(Error), Cancelled }
 Each error has a user-facing message plus an optional "details" text for a copy-to-clipboard button.
 
 ## 9. File-change safety
-Memory-mapped files can change under us. Store (size, mtime) at open time and re-check on window focus and every 5 s. If something changed, show a banner: "File changed on disk. Reload?". On Unix, truncation can cause SIGBUS, so all mmap reads go through `Document` and we re-validate the length before long jobs. On Windows the mapping prevents deletion; that's acceptable and documented.
+Memory-mapped files can change under us. Store (size, mtime) at open time and re-check on window focus and every 5 s. If something changed, show a banner: "File changed on disk. Reload?". On Unix, truncation can cause SIGBUS, so all mmap reads go through `Document` and we re-validate the length before long jobs; a SIGBUS guard turns reads past a truncated end into zero pages and marks the document as changed (ADR 028). On Windows the mapping prevents deletion; that's acceptable and documented.
