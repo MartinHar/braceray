@@ -31,7 +31,10 @@ fn panic_writes_a_crash_log_to_the_config_dir() {
         .filter(|e| e.file_name().to_string_lossy().starts_with("crash-"))
         .collect();
     assert_eq!(logs.len(), 1, "{dir:?}");
-    let text = std::fs::read_to_string(logs[0].path()).unwrap();
+    // Windows writes the panic location with backslashes.
+    let text = std::fs::read_to_string(logs[0].path())
+        .unwrap()
+        .replace('\\', "/");
     assert!(
         text.contains("message: crash test requested with --crash-test"),
         "{text}"

@@ -361,6 +361,12 @@ mod tests {
         ));
         assert!(job.is_finished());
         assert!(job.try_recv().is_none());
+        // The last repaint comes right after the end message (that order is what makes
+        // the UI see the result), so it may land a moment after `drain` returns.
+        let start = std::time::Instant::now();
+        while repaints.load(Ordering::Relaxed) < 3 && start.elapsed().as_secs() < 5 {
+            std::thread::yield_now();
+        }
         assert_eq!(repaints.load(Ordering::Relaxed), 3);
     }
 
