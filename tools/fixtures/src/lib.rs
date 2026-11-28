@@ -5,6 +5,7 @@
 //! See `tools/fixtures/README.md` for usage.
 
 pub mod all;
+pub mod bench_big;
 pub mod diff;
 pub mod emit;
 pub mod encoding;

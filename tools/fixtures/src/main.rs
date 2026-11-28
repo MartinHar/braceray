@@ -3,7 +3,9 @@
 use clap::{Args, Parser, Subcommand};
 use gen_fixtures::orders::RecordsOpts;
 use gen_fixtures::size::parse_size;
-use gen_fixtures::{DEFAULT_SEED, all, diff, encoding, invalid, logs, orders, records, shapes};
+use gen_fixtures::{
+    DEFAULT_SEED, all, bench_big, diff, encoding, invalid, logs, orders, records, shapes,
+};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::atomic::Ordering;
@@ -116,6 +118,35 @@ enum Cmd {
         #[arg(long, default_value_t = 1000)]
         changes: u64,
     },
+    /// Measure the performance targets on the big fixtures (generated when missing) and
+    /// print Markdown rows for docs/PERF.md. Build with --release.
+    BenchBig {
+        /// Fixture directory.
+        #[arg(long, default_value = "fixtures-data")]
+        dir: PathBuf,
+        /// Comma-separated `orders` fixtures (`_min` in the name ⇒ minified).
+        #[arg(
+            long,
+            default_value = "orders_2g.json,orders_min_2g.json",
+            value_delimiter = ','
+        )]
+        files: Vec<String>,
+        /// Size of fixtures it has to generate.
+        #[arg(long, default_value = "2g", value_parser = parse_size)]
+        size: u64,
+        /// Repetitions of each warm measurement (the best is reported).
+        #[arg(long, default_value_t = 3)]
+        runs: usize,
+        /// Also measure cold (drops the OS page cache: needs root, e.g. `sudo purge`).
+        #[arg(long)]
+        cold: bool,
+        /// Machine ID for the tables (see docs/PERF.md → Machines).
+        #[arg(long, default_value = "?")]
+        machine: String,
+        /// Step column of the rows.
+        #[arg(long, default_value = "12")]
+        step: String,
+    },
 }
 
 fn run(cmd: Cmd) -> std::io::Result<()> {
@@ -157,6 +188,29 @@ fn run(cmd: Cmd) -> std::io::Result<()> {
         Cmd::Encoding { c } => encoding::generate_encoding(&c.out, c.seed).map(drop),
         Cmd::Diff { c, size, changes } => {
             diff::generate_diff(&c.out, size, changes, c.seed).map(drop)
+        }
+        Cmd::BenchBig {
+            dir,
+            files,
+            size,
+            runs,
+            cold,
+            machine,
+            step,
+        } => {
+            let report = bench_big::run(&bench_big::BenchOpts {
+                dir,
+                files,
+                size,
+                runs,
+                cold,
+            })?;
+            println!("{}", report.markdown(&machine, &step));
+            if report.all_met() {
+                Ok(())
+            } else {
+                Err(std::io::Error::other("some targets were missed (❌ rows)"))
+            }
         }
     }
 }

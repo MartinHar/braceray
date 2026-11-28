@@ -12,9 +12,9 @@
 | Field | Value |
 |---|---|
 | **Current step** | 12 — MVP hardening & release v0.1.0 |
-| **Status** | ⬜ Not started |
-| **Current sub-task** | — |
-| **Next action** | Martin reviews step 11 (try Ctrl/Cmd+C in the tree and Export… by hand); then start step 12 |
+| **Status** | 🟦 In progress |
+| **Current sub-task** | 12a performance verification |
+| **Next action** | 12b: fuzz runs, panic hook + crash dialog, CI tests back on |
 | **Last updated** | 2026-11-28 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -43,7 +43,7 @@
 | 09 | Search engine (core) | MVP | ✅ | 2026-11-27 | 2026-11-27 | 2419a48 |
 | 10 | Search UI | MVP | ⚠️ | 2026-11-27 | 2026-11-27 | de4c6e2 (10a), e8bbdd6 (10b) |
 | 11 | Breadcrumbs & copy | MVP | ✅ | 2026-11-28 | 2026-11-28 | fd02f47 (11a), 2bb48fc (fix), d6bf770 (11b) |
-| 12 | MVP hardening & release v0.1.0 | MVP | ⬜ | | | |
+| 12 | MVP hardening & release v0.1.0 | MVP | 🟦 | 2026-11-28 | | |
 | 13 | Advanced search (regex, keys/values) | v1 | ⬜ | | | |
 | 14 | JSONPath queries | v1 | ⬜ | | | |
 | 15 | Bookmarks | v1 | ⬜ | | | |
@@ -602,6 +602,50 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 
 **Decisions** (also in docs/DECISIONS.md)
 - 025: dot-form rules per format, reference checks, whitespace-only formatter with bounded output, guard on input size and sync/worker split, breadcrumb chain from the row model, hover dropdown, clipboard and test hook, remembered format.
+
+---
+
+### Step 12 — MVP hardening, benchmarks & release v0.1.0
+**Status:** 🟦 In progress · **Started:** 2026-11-28 · **Finished:** —
+
+**Plan**
+- 12a performance
+  - [x] `gen-fixtures bench-big`: generate the 2 GB fixtures if missing; open → first content, full index (warm, cold with `--cold`), index memory, re-open from cache, search cs / ci (rare + common), first result, expand root, peak RSS; Markdown rows for PERF.md, ✅/❌ vs overview.md, non-zero exit on a miss
+  - [x] Run it on M3P (both 2 GB files): every measured target met; cold needs root (Martin: `sudo` run, optional)
+  - [ ] "App memory excluding the mapped file < 300 MB + index": not measurable yet (I-008) — needs a heap number in the app
+  - [ ] Frame-time check of tree / raw / results on the 2 GB file with the overlay (`Ctrl+Shift+D`, exists since step 07: p50 / p99 / max over 600 frames) — re-check in the release build
+- 12b robustness
+  - [ ] Fuzz all targets ≥ 10 min each (`index_any_bytes`, `search_any`, `pretty_range`; `jsonpath_parse` comes with step 14); fix crashes, add inputs to the corpus
+  - [ ] Panic hook: crash log in the config dir + dialog "Braceray hit a bug. Log saved to … [Open issue on GitHub]" (prefilled issue URL, nothing sent)
+  - [ ] Open every catalogue fixture (encoding, `invalid_*`, 5 GB sparse) through the UI via egui-mcp: no panics, clear messages
+  - [ ] Close a tab during indexing / search / copy: memory back to baseline, no panics; modify the file during indexing → reload banner
+  - [ ] CI runs `cargo test` again + generates the 100 MB fixture set (I-001, I-002); fix the known test flakes (I-010, I-011)
+  - [ ] Open backlog items planned for step 12 (I-007 macOS Open With, I-008, I-009, I-012/I-016, I-013 pane toggles): fix or move to a later step with Martin's OK
+- 12c branding
+  - [ ] Icon SVG (`{ }` + cyan scan beam on a dark rounded square) → PNG 1024…16, `.icns`, `.ico`; window icon via `ViewportBuilder::with_icon`
+  - [ ] About dialog: name, version, tagline, MIT, GitHub link, third-party licenses viewer
+- 12d packaging
+  - [ ] `packaging/macos/Info.plist` (bundle id, `public.json` viewer, LSMinimumSystemVersion 11.0); Windows icon + version info via `winresource` in `build.rs`
+  - [ ] `.github/workflows/release.yml` on tag `v*`: Windows x64 zip, macOS universal `.app` (lipo, ad-hoc codesign) in a dmg, Linux tar.gz, SHA256SUMS, `gh release create` with the changelog section
+  - [ ] Dry run of the workflow (e.g. a pre-release tag, with Martin's OK) before `v0.1.0`
+- 12e docs & release
+  - [ ] README: screenshot/GIF, features, Install (SmartScreen / Gatekeeper steps), build from source, shortcuts, performance table, privacy, license
+  - [ ] `CHANGELOG.md` `[0.1.0]`, version 0.1.0 in the workspace, release checklist (testing-strategy.md) in a release issue
+  - [ ] Martin: tag `v0.1.0`, try the downloads on clean Windows + Apple Silicon
+
+**Acceptance criteria** (copied from the step file)
+- [ ] Every MVP target in `overview.md` is met on at least one reference machine, and the numbers are in `docs/PERF.md`.
+- [ ] Fuzzing finds no crashes in 10 min per target.
+- [ ] `git tag v0.1.0 && git push --tags` produces a GitHub Release with Windows zip, macOS dmg, Linux tar.gz and checksums.
+- [ ] Downloaded builds launch on a clean Windows machine and a Mac (Apple Silicon) following the README steps.
+- [ ] The release checklist in `testing-strategy.md` is completed and pasted into the release PR or issue.
+- [ ] `CHANGELOG.md` has a `[0.1.0]` section.
+
+**Quality gates (last run)**
+- [x] fmt · [x] clippy (also `gen-fixtures --target x86_64-apple-darwin`) · [x] tests (290 passed, 0 failed, 9 ignored) · [x] cargo deny · [ ] benches. Run 2026-11-28 on M3 Pro, macOS.
+
+**What was done**
+- 12a: `gen-fixtures bench-big` (`tools/fixtures/src/bench_big/`); first run on M3P recorded in PERF.md (all measured targets ✅).
 
 ---
 

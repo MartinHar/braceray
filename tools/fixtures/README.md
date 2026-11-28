@@ -22,6 +22,21 @@ gen-fixtures encoding --out fixtures-data/encoding/                 # + encoding
 gen-fixtures diff     --size 1g --changes 1000 --out fixtures-data/diff/   # + diff_manifest.json
 ```
 
+### `bench-big` (performance targets, step 12)
+
+```sh
+cargo build --release -p gen-fixtures
+./target/release/gen-fixtures bench-big --machine M3P [--files orders_2g.json,orders_min_2g.json] [--runs 3] [--cold]
+```
+
+Generates the listed `orders` fixtures in `--dir` (default `fixtures-data/`) when they are missing, then measures each one:
+open → first content (preview index + first tree rows), full index (warm; cold with `--cold`), index memory, re-open from
+the index cache, plain and case-insensitive search for `NEEDLE_RARE` / `needle_common` (counts checked against the
+manifest), first search result, expand root, checkpoint table of the root, peak RSS. It prints Markdown rows for
+`docs/PERF.md` (✅ / ❌ against `docs/specs/overview.md`) and exits non-zero if a target is missed. `--cold` drops the OS
+page cache first, which needs root (`sudo purge` on macOS, `drop_caches` on Linux); without it the cold rows say
+"not measured". Measure one 2 GB file per run on machines with < 32 GB RAM, so both don't compete for the page cache.
+
 Sizes accept `500`, `10k`, `100m`, `2g` (binary units). `-q` hides progress. `fixtures-data/` is in `.gitignore`.
 
 `all --max-size N` caps every fixture at `N`. Sizes that collapse onto the same cap are generated once, and every fixture type is still created. CI-sized set: `--max-size 100m` (~850 MB, under 1 s on an M3 Pro).

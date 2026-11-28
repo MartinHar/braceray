@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Copy value as in the file, formatted (pretty) or minified, Copy key (decoded) and Copy string contents (decoded, without quotes), from the context menu; Ctrl/Cmd+C copies the selected value when the tree has focus. Big values copy in the background with progress and Cancel; "Copied 12.4 MB" notices.
 - Values over 50 MB (Settings) ask first: "This value is 1.2 GB. Copying it may use a lot of memory. Export to file instead?" with Export… (save the raw bytes to a file), Copy anyway, Cancel.
 - `braceray_core::path::format_path` / `PathFormat` and `braceray_core::copy` (streaming raw / pretty / minified / string-contents formatter, no DOM, cancellable, bounded output).
+- `gen-fixtures bench-big`: measures every MVP performance target on the 2 GB fixtures (generated when missing) and prints Markdown rows for `docs/PERF.md`.
 
 ### Changed
 - Searches run on their own thread pool, so a search started while a 2 GB file is indexing shows its first results as fast as on an indexed file.

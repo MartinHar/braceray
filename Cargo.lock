@@ -1589,9 +1589,11 @@ dependencies = [
 name = "gen-fixtures"
 version = "0.0.0"
 dependencies = [
+ "braceray-core",
  "clap",
  "fastrand",
  "itoa",
+ "memory-stats",
  "rayon",
  "serde",
  "serde_json",
