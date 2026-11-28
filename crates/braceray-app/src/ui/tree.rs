@@ -2,7 +2,10 @@
 //! `f64`, so millions of rows keep pixel precision), keyboard navigation and a context
 //! menu. Work per frame is proportional to the rows on screen.
 
+use braceray_core::copy::CopyStyle;
 use braceray_core::job::Repaint;
+use braceray_core::nav::ValueKind;
+use braceray_core::path::PathFormat;
 use braceray_core::tree::{Row, RowItem};
 use eframe::egui::{
     self, Align2, Color32, FontId, Key, Modifiers, Rect, Role, Sense, Stroke, StrokeKind, pos2,
@@ -11,6 +14,7 @@ use eframe::egui::{
 
 use super::Action;
 use super::tree_row::{self, Palette};
+use crate::copy_job::PRETTY;
 use crate::format;
 use crate::theme;
 use crate::tree_view::{TreeKey, TreeView};
@@ -20,8 +24,18 @@ pub const ROW_HEIGHT: f32 = 22.0;
 /// Indentation per level.
 const INDENT: f32 = 16.0;
 use super::vlist::SCROLLBAR;
-/// Values up to this size can be copied.
-pub const COPY_LIMIT: u64 = 16 << 20;
+/// Context menu: the "Copy path" submenu.
+pub const COPY_PATH: &str = "Copy path";
+/// Context menu: copy the value as in the file.
+pub const COPY_VALUE: &str = "Copy value";
+/// Context menu: copy the value pretty-printed.
+pub const COPY_FORMATTED: &str = "Copy formatted";
+/// Context menu: copy the value minified.
+pub const COPY_MINIFIED: &str = "Copy minified";
+/// Context menu: copy the key.
+pub const COPY_KEY: &str = "Copy key";
+/// Context menu: copy a string's decoded text.
+pub const COPY_STRING: &str = "Copy string contents";
 /// Accessible name of the scrollbar.
 pub const SCROLLBAR_LABEL: &str = "Tree scrollbar";
 /// Context menu item that scrolls the raw view to the row.
@@ -73,6 +87,10 @@ pub fn show(
     let ctx = ui.ctx().clone();
     if cx.keys && !ctx.egui_wants_keyboard_input() && !egui::Popup::is_any_open(&ctx) {
         keyboard(&ctx, tree, full_rows, cx.repaint);
+        // Ctrl/Cmd+C arrives as a copy event, not as a key.
+        if ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Copy))) {
+            actions.push(Action::CopyValue(CopyStyle::Raw));
+        }
     }
 
     // Scrolling: wheel, then "bring into view", then clamp.
@@ -190,7 +208,7 @@ pub fn show(
         if response.double_clicked() {
             clicked = Some((index, true));
         }
-        response.context_menu(|ui| context_menu(ui, tree, index, row, bytes, actions, cx.repaint));
+        response.context_menu(|ui| context_menu(ui, tree, index, row, actions, cx.repaint));
     }
     if let Some((index, toggle)) = clicked {
         tree.selected = Some(index);
@@ -287,7 +305,6 @@ fn context_menu(
     tree: &mut TreeView,
     index: u64,
     row: &Row,
-    bytes: &[u8],
     actions: &mut Vec<Action>,
     repaint: &Repaint,
 ) {
@@ -304,43 +321,42 @@ fn context_menu(
         }
         ui.separator();
     }
-    let (key, value) = match &row.item {
-        RowItem::Value(v) => (v.child.key, Some(v.child.value)),
+    ui.menu_button(COPY_PATH, |ui| {
+        for f in PathFormat::ALL {
+            if ui.button(f.label()).clicked() {
+                actions.push(Action::CopyPath(Some(f)));
+                ui.close();
+            }
+        }
+    });
+    let (key, kind) = match &row.item {
+        RowItem::Value(v) => (v.child.key, Some(v.child.kind)),
         _ => (None, None),
     };
-    let key_text = key.map(|k| {
-        let raw = k.slice(bytes);
-        let raw = raw.strip_prefix(b"\"").unwrap_or(raw);
-        String::from_utf8_lossy(raw.strip_suffix(b"\"").unwrap_or(raw)).into_owned()
-    });
-    if ui
-        .add_enabled(key_text.is_some(), egui::Button::new("Copy key"))
-        .clicked()
-    {
-        actions.extend(key_text.map(Action::Copy));
-        ui.close();
-    }
-    let size = value.map_or(0, |v| v.end - v.start);
-    let copy = ui
-        .add_enabled(
-            value.is_some() && size <= COPY_LIMIT,
-            egui::Button::new("Copy value"),
-        )
-        .on_disabled_hover_text(format!(
-            "Too big to copy ({}); the limit is {}.",
-            format::bytes(size),
-            format::bytes(COPY_LIMIT)
-        ));
-    if copy.clicked() {
-        if let Some(v) = value {
-            actions.push(Action::Copy(
-                String::from_utf8_lossy(v.slice(bytes)).into_owned(),
-            ));
+    let mut item = |ui: &mut egui::Ui, enabled: bool, label: &str, action: Action| {
+        if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+            actions.push(action);
+            ui.close();
         }
-        ui.close();
+    };
+    item(ui, true, COPY_VALUE, Action::CopyValue(CopyStyle::Raw));
+    item(ui, true, COPY_FORMATTED, Action::CopyValue(PRETTY));
+    item(
+        ui,
+        true,
+        COPY_MINIFIED,
+        Action::CopyValue(CopyStyle::Minified),
+    );
+    item(ui, key.is_some(), COPY_KEY, Action::CopyKey);
+    if kind == Some(ValueKind::String) {
+        item(
+            ui,
+            true,
+            COPY_STRING,
+            Action::CopyValue(CopyStyle::StringContents),
+        );
     }
-    ui.add_enabled(false, egui::Button::new("Copy path"))
-        .on_disabled_hover_text("JSONPath / jq / JavaScript paths arrive with the breadcrumb bar.");
+    ui.separator();
     if ui.button(SHOW_IN_RAW).clicked() {
         actions.push(Action::ShowInRaw);
         ui.close();

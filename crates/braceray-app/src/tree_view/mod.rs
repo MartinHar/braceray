@@ -12,8 +12,10 @@ use braceray_core::tree::preview::Preview;
 use braceray_core::tree::{Expand, Reveal, Row, RowItem, Rows, TreeModel};
 use braceray_core::{Document, Index};
 
+mod crumbs;
 mod keys;
 
+pub use crumbs::{LABEL_CHARS, SIBLINGS, Selected, Sibling};
 pub use keys::TreeKey;
 
 /// Rows that `*` and "Expand all below" add before asking to continue.
@@ -86,9 +88,12 @@ pub struct TreeView {
     source_generation: u64,
     /// (selected row, generation, its spans).
     selected_cache: RefCell<Option<SelectedSpans>>,
+    /// (selected row, generation, its breadcrumb rows).
+    crumbs_cache: RefCell<Option<CrumbRows>>,
 }
 
 type SelectedSpans = (u64, u64, Option<(Option<Span>, Span)>);
+type CrumbRows = (u64, u64, std::rc::Rc<[u64]>);
 
 impl std::fmt::Debug for TreeView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -130,6 +135,7 @@ impl TreeView {
             rows_cache: None,
             source_generation: 0,
             selected_cache: RefCell::new(None),
+            crumbs_cache: RefCell::new(None),
         };
         if view.model.row_count() > 0 {
             view.selected = Some(0);

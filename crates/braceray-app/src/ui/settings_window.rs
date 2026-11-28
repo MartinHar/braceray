@@ -4,9 +4,11 @@ use eframe::egui::{self, RichText};
 
 use super::Action;
 use crate::format;
+use braceray_core::path::PathFormat;
+
 use crate::settings::{
-    CACHE_MAX_RANGE, CACHE_MIN_FILE_RANGE, GROUP_SIZE_RANGE, MAX_RESULTS_RANGE, Settings,
-    ThemeChoice,
+    CACHE_MAX_RANGE, CACHE_MIN_FILE_RANGE, COPY_LIMIT_RANGE, GROUP_SIZE_RANGE, MAX_RESULTS_RANGE,
+    Settings, ThemeChoice, valid_js_root,
 };
 
 /// What the settings window shows about the index cache.
@@ -113,6 +115,41 @@ pub fn show(
                         .speed(10),
                 )
                 .labelled_by(l.id);
+                ui.end_row();
+            });
+
+            section(ui, "Copy");
+            egui::Grid::new("copy_grid").num_columns(2).show(ui, |ui| {
+                ui.label("Path format");
+                ui.horizontal_wrapped(|ui| {
+                    for f in PathFormat::ALL {
+                        ui.selectable_value(&mut settings.path_format, f, f.label());
+                    }
+                });
+                ui.end_row();
+                let l = ui.label("JavaScript root name");
+                // Typed text lives in a buffer; only valid names reach the settings.
+                let buf_id = l.id.with("js_root_buffer");
+                let mut root = ui
+                    .data_mut(|d| d.get_temp::<String>(buf_id))
+                    .unwrap_or_else(|| settings.js_root.clone());
+                let edit = ui
+                    .add(egui::TextEdit::singleline(&mut root).desired_width(140.0))
+                    .labelled_by(l.id)
+                    .on_hover_text("data.orders[0]: letters, digits, _, $ and dots");
+                if valid_js_root(root.trim()) {
+                    settings.js_root = root.trim().to_owned();
+                }
+                if edit.has_focus() {
+                    ui.data_mut(|d| d.insert_temp(buf_id, root));
+                } else {
+                    ui.data_mut(|d| d.remove::<String>(buf_id));
+                }
+                ui.end_row();
+                let l = ui.label("Ask before copying over (MB)");
+                gib_slider(ui, &mut settings.copy_limit_bytes, COPY_LIMIT_RANGE, MIB)
+                    .labelled_by(l.id)
+                    .on_hover_text("Bigger values ask first and offer to export to a file.");
                 ui.end_row();
             });
 

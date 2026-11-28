@@ -269,6 +269,17 @@ proptest! {
                 prop_assert_eq!(model.address(r as u64).unwrap(), f.address.clone());
                 prop_assert_eq!(model.parent(r as u64), f.parent.map(|p| p as u64));
                 prop_assert_eq!(model.depth(r as u64), Some(f.row.depth));
+                // Ancestors: the parent chain, value rows only, root first.
+                let mut want = Vec::new();
+                let mut at = Some(r);
+                while let Some(i) = at {
+                    if matches!(flat[i].row.desc, Desc::Value { .. }) {
+                        want.push(i as u64);
+                    }
+                    at = flat[i].parent;
+                }
+                want.reverse();
+                prop_assert_eq!(model.ancestors(r as u64), want);
             }
             // Any range of rows equals the same slice of all rows.
             let all = model_rows(&nav, &bytes, &model);

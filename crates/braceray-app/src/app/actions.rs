@@ -12,6 +12,9 @@ use crate::ui::{self, Action};
 
 impl BracerayApp {
     pub(super) fn apply(&mut self, ctx: &egui::Context, action: Action) {
+        if self.apply_copy(ctx, &action) {
+            return;
+        }
         match action {
             Action::OpenDialog => self.open_dialog(),
             Action::Open(path) => self.open_now(&path),
@@ -48,7 +51,7 @@ impl BracerayApp {
                     t.browse_invalid = true;
                 }
             }
-            Action::Copy(text) => ctx.copy_text(text),
+            Action::Copy(text) => self.copy_text(ctx, text),
             Action::RemoveRecent(path) => {
                 self.settings.remove_recent(&path);
                 self.missing_recent.remove(&path);
@@ -128,6 +131,13 @@ impl BracerayApp {
             }
             Action::OpenExternal(path) => open_external(&path),
             Action::Focus(_) | Action::Close(_) => {}
+            Action::CopyPath(_)
+            | Action::CopyValue(_)
+            | Action::CopyKey
+            | Action::CopyAnyway
+            | Action::ExportValue
+            | Action::CancelGuard
+            | Action::CancelCopy => {} // apply_copy
         }
     }
 

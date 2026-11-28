@@ -34,7 +34,12 @@ pub const SHORTCUTS: &[(&str, &str, bool)] = &[
         "Go to a line, line:col, @offset (@1.5g) or path ($.a[3])",
         true,
     ),
-    ("Mod+Shift+C", "Copy path", false),
+    (
+        "Mod+Shift+C",
+        "Copy the path of the selection (last format: JSONPath, jq, JavaScript, Pointer)",
+        true,
+    ),
+    ("Mod+C (tree)", "Copy the selected value", true),
     ("Mod+B", "Bookmark", false),
     (
         "← / →",

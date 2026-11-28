@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Sender};
 
 use braceray_core::cache::CacheSettings;
+use braceray_core::path::{DEFAULT_JS_ROOT, PathFormat};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -59,6 +60,13 @@ pub struct Settings {
     pub max_stored_results: u64,
     /// Children per group when a container is huge (`[0 … 999]`). Used from step 07.
     pub tree_group_size: u64,
+    /// Format of "Copy path" (the breadcrumb button and Ctrl/Cmd+Shift+C): the last one
+    /// chosen.
+    pub path_format: PathFormat,
+    /// Root name of JavaScript paths (`data.orders[0]`).
+    pub js_root: String,
+    /// Copying a value bigger than this asks first (offers "Export…").
+    pub copy_limit_bytes: u64,
     /// Recently opened files, newest first.
     pub recent_files: Vec<PathBuf>,
     /// Recent search texts, newest first.
@@ -73,6 +81,12 @@ pub const CACHE_MIN_FILE_RANGE: (u64, u64) = (0, 100 << 30);
 pub const MAX_RESULTS_RANGE: (u64, u64) = (1_000, 100_000_000);
 /// Allowed range of [`Settings::tree_group_size`].
 pub const GROUP_SIZE_RANGE: (u64, u64) = (10, 1_000_000);
+/// Allowed range of [`Settings::copy_limit_bytes`]: 1 MiB ..= 64 GiB.
+pub const COPY_LIMIT_RANGE: (u64, u64) = (1 << 20, 64 << 30);
+/// Default of [`Settings::copy_limit_bytes`]: 50 MB.
+pub const DEFAULT_COPY_LIMIT: u64 = 50 << 20;
+/// Longest accepted [`Settings::js_root`].
+pub const MAX_JS_ROOT: usize = 64;
 
 impl Default for Settings {
     fn default() -> Self {
@@ -84,6 +98,9 @@ impl Default for Settings {
             index_cache_min_file_bytes: cache.index_cache_min_file_bytes,
             max_stored_results: 5_000_000,
             tree_group_size: 1000,
+            path_format: PathFormat::JsonPath,
+            js_root: DEFAULT_JS_ROOT.to_owned(),
+            copy_limit_bytes: DEFAULT_COPY_LIMIT,
             recent_files: Vec::new(),
             search_history: Vec::new(),
         }
@@ -112,6 +129,9 @@ impl Settings {
             ),
             max_stored_results: field(&obj, "max_stored_results", d.max_stored_results),
             tree_group_size: field(&obj, "tree_group_size", d.tree_group_size),
+            path_format: field(&obj, "path_format", d.path_format),
+            js_root: field(&obj, "js_root", d.js_root),
+            copy_limit_bytes: field(&obj, "copy_limit_bytes", d.copy_limit_bytes),
             recent_files: field(&obj, "recent_files", d.recent_files),
             search_history: field(&obj, "search_history", d.search_history),
         };
@@ -149,6 +169,19 @@ impl Settings {
             GROUP_SIZE_RANGE,
             d.tree_group_size,
         );
+        clamp_or_default(
+            &mut self.copy_limit_bytes,
+            COPY_LIMIT_RANGE,
+            d.copy_limit_bytes,
+        );
+        if !valid_js_root(&self.js_root) {
+            tracing::warn!(
+                "settings: bad js_root {:?}, using {:?}",
+                self.js_root,
+                d.js_root
+            );
+            self.js_root = d.js_root;
+        }
         let mut seen = Vec::with_capacity(self.recent_files.len());
         self.recent_files.retain(|p| {
             let keep = !p.as_os_str().is_empty() && !seen.contains(p);
@@ -200,6 +233,20 @@ impl Settings {
     pub fn remove_recent(&mut self, path: &Path) {
         self.recent_files.retain(|p| p != path);
     }
+}
+
+/// A JavaScript root name: an expression start such as `data`, `window.data` or
+/// `$json` (identifier characters and dots, not starting with a digit or dot).
+pub fn valid_js_root(root: &str) -> bool {
+    let ok = |c: char| c.is_ascii_alphanumeric() || matches!(c, '_' | '$' | '.');
+    root.len() <= MAX_JS_ROOT
+        && root
+            .chars()
+            .next()
+            .is_some_and(|c| ok(c) && !c.is_ascii_digit() && c != '.')
+        && root.chars().all(ok)
+        && !root.ends_with('.')
+        && !root.contains("..")
 }
 
 fn field<T: serde::de::DeserializeOwned>(obj: &Map<String, Value>, key: &str, default: T) -> T {
@@ -348,6 +395,9 @@ mod tests {
             theme: ThemeChoice::Light,
             index_cache_enabled: false,
             tree_group_size: 500,
+            path_format: PathFormat::Jq,
+            js_root: "window.doc".to_owned(),
+            copy_limit_bytes: 8 << 20,
             ..Settings::default()
         };
         s.push_recent(Path::new("/a.json"));
@@ -370,6 +420,26 @@ mod tests {
         assert_eq!(Settings::from_json("not json"), d);
         assert_eq!(Settings::from_json("[1, 2]"), d);
         assert_eq!(Settings::from_json(""), d);
+    }
+
+    #[test]
+    fn copy_settings_are_validated() {
+        let s = Settings::from_json(
+            r#"{"path_format": "javascript", "js_root": "1bad", "copy_limit_bytes": 12}"#,
+        );
+        let d = Settings::default();
+        assert_eq!(s.path_format, PathFormat::JavaScript);
+        assert_eq!(s.js_root, d.js_root);
+        assert_eq!(s.copy_limit_bytes, d.copy_limit_bytes);
+        let s = Settings::from_json(r#"{"path_format": "xpath"}"#);
+        assert_eq!(s.path_format, PathFormat::JsonPath);
+        for ok in ["data", "$json", "window.data", "_", "a1"] {
+            assert!(valid_js_root(ok), "{ok}");
+        }
+        for bad in ["", "1a", ".a", "a.", "a..b", "a b", "a[0]", "a;alert(1)"] {
+            assert!(!valid_js_root(bad), "{bad}");
+        }
+        assert!(!valid_js_root(&"a".repeat(MAX_JS_ROOT + 1)));
     }
 
     #[test]

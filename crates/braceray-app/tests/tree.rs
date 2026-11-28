@@ -268,10 +268,10 @@ fn context_menu_copies_and_expands() {
     assert_eq!(copied(&h), ["\"Ann\""]);
     h.run_steps(2);
 
-    // "Copy path" waits for step 11; "Show in raw view" works since step 08.
+    // "Copy path" (step 11) and "Show in raw view" (step 08) are available.
     h.get_by_label("tags : [2]").click_secondary();
     h.run_steps(2);
-    assert!(h.get_by_label("Copy path").accesskit_node().is_disabled());
+    assert!(!h.get_by_label("Copy path").accesskit_node().is_disabled());
     assert!(
         !h.get_by_label("Show in raw view")
             .accesskit_node()

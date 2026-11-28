@@ -7,13 +7,16 @@ use std::time::{Duration, Instant};
 
 use braceray_core::cache::IndexCache;
 use braceray_core::job::{JobEvent, JobHandle, Repaint};
-use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
+use eframe::egui;
 
 use crate::settings::{Settings, SettingsStore};
 use crate::tab::{OpenDocument, OpenEnv, canonical_key};
 use crate::theme;
 
 mod actions;
+mod copy;
+mod input;
+mod stats;
 use crate::ui::debug_overlay::{self, FrameStats};
 use crate::ui::goto::GoToDialog;
 use crate::ui::search::SearchBar;
@@ -84,6 +87,8 @@ pub struct BracerayApp {
     focused: bool,
     /// Frame times for the debug overlay.
     pub frame_stats: FrameStats,
+    /// Test hook ("mock clipboard"): every text copied, when enabled.
+    copies: Option<Vec<String>>,
     cpu_usage: Option<f32>,
 }
 
@@ -133,6 +138,7 @@ impl BracerayApp {
             focused: true,
             frame_stats: FrameStats::default(),
             cpu_usage: None,
+            copies: None,
         }
     }
 
@@ -140,6 +146,29 @@ impl BracerayApp {
     /// drops, the dialog, recent files and tests.
     pub fn open_path(&mut self, path: impl Into<PathBuf>) {
         self.pending_opens.push(path.into());
+    }
+
+    /// Test hook: from now on, keep every text put on the clipboard (see
+    /// [`copies`](Self::copies)). Real clipboards can't be read back in UI tests, and
+    /// one test step may run several frames.
+    #[doc(hidden)]
+    pub fn record_copies(&mut self) {
+        self.copies.get_or_insert_with(Vec::new);
+    }
+
+    /// Test hook: texts copied since [`record_copies`](Self::record_copies), oldest first;
+    /// empties the log.
+    #[doc(hidden)]
+    pub fn take_copies(&mut self) -> Vec<String> {
+        self.copies.as_mut().map(std::mem::take).unwrap_or_default()
+    }
+
+    /// Puts `text` on the clipboard (through eframe's `arboard` clipboard).
+    fn copy_text(&mut self, ctx: &egui::Context, text: String) {
+        if let Some(log) = &mut self.copies {
+            log.push(text.clone());
+        }
+        ctx.copy_text(text);
     }
 
     /// The settings store (tests flush it).
@@ -198,6 +227,7 @@ impl BracerayApp {
                 });
         }
         self.run_search(&ctx, &repaint);
+        self.breadcrumb_bar(ui, &mut actions);
         egui::Panel::bottom("status_bar")
             .frame(
                 egui::Frame::side_top_panel(ui.style()).inner_margin(egui::Margin::symmetric(8, 3)),
@@ -246,6 +276,7 @@ impl BracerayApp {
         ui::shortcuts::show(&ctx, &mut open);
         self.show_shortcuts = open;
         self.goto_frame(&ctx);
+        self.copy_guard(&ctx, &mut actions);
 
         self.keyboard(&ctx, &mut actions);
         self.drag_and_drop(&ctx, &mut actions);
@@ -262,50 +293,6 @@ impl BracerayApp {
             // Keep measuring while the overlay is open.
             ctx.request_repaint_after(Duration::from_millis(250));
         }
-    }
-
-    /// Tree numbers for the debug overlay (only computed while it is open).
-    fn debug_lines(&self) -> Vec<String> {
-        if !self.frame_stats.open {
-            return Vec::new();
-        }
-        let Some(tab) = self.active_tab() else {
-            return vec!["No tree".to_owned()];
-        };
-        let Some(tree) = tab.tree.as_ref() else {
-            return vec!["No tree".to_owned()];
-        };
-        let ms = |d: Option<Duration>| {
-            d.map_or("–".to_owned(), |d| {
-                format!("{:.2} ms", d.as_secs_f64() * 1000.0)
-            })
-        };
-        vec![
-            format!("First rows after open: {}", ms(tab.first_rows)),
-            format!(
-                "Last expand: {} · last prepare: {}",
-                ms(tree.timings.expand),
-                ms(tree.timings.prepare)
-            ),
-            format!(
-                "Tree rows: {} · segments: {}",
-                crate::format::group_digits(tree.model.row_count()),
-                tree.model.segment_count()
-            ),
-            format!(
-                "Checkpoint cache: {} · jobs: {}{}",
-                crate::format::bytes(tree.cache_bytes() as u64),
-                tree.jobs_running(),
-                if tree.is_preview() { " · preview" } else { "" }
-            ),
-            format!(
-                "Search: first result {} ({} after typing) · finished in {} · {} stored",
-                ms(tab.search.first_result),
-                ms(tab.search.first_result_typed),
-                ms(tab.search.handle().and_then(|h| h.duration())),
-                crate::format::group_digits(tab.search.stored() as u64)
-            ),
-        ]
     }
 
     /// The full CPU time of the previous frame, from eframe (shown in the debug overlay).
@@ -353,6 +340,7 @@ impl BracerayApp {
         if !self.tabs.is_empty() {
             ctx.request_repaint_after(crate::tab::CHANGE_CHECK_EVERY);
         }
+        self.poll_copies(ctx);
         self.poll_background();
 
         if self.memory_at.is_none_or(|t| t.elapsed() >= MEMORY_EVERY) {
@@ -435,63 +423,6 @@ impl BracerayApp {
         ));
     }
 
-    fn keyboard(&mut self, ctx: &egui::Context, actions: &mut Vec<Action>) {
-        let open = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
-        let close = KeyboardShortcut::new(Modifiers::COMMAND, Key::W);
-        let goto = KeyboardShortcut::new(Modifiers::COMMAND, Key::L);
-        let mac = ctx.os() == egui::os::OperatingSystem::Mac;
-        let debug = [
-            KeyboardShortcut::new(Modifiers::CTRL | Modifiers::SHIFT, Key::D),
-            KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::D),
-        ];
-        ctx.input_mut(|i| {
-            if debug.iter().any(|d| i.consume_shortcut(d)) {
-                self.frame_stats.open = !self.frame_stats.open;
-            }
-            if i.consume_shortcut(&open) {
-                actions.push(Action::OpenDialog);
-            }
-            if i.consume_shortcut(&close) && !self.tabs.is_empty() {
-                actions.push(Action::Close(self.active));
-            }
-            if i.consume_shortcut(&goto) {
-                actions.push(Action::GoTo);
-            }
-            // Shift variants first: a pattern without Shift also matches with Shift.
-            let cmd_shift = Modifiers::COMMAND | Modifiers::SHIFT;
-            if i.consume_shortcut(&KeyboardShortcut::new(cmd_shift, Key::F)) {
-                actions.push(Action::ToggleResults);
-            }
-            if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::F)) {
-                actions.push(Action::FocusSearch);
-            }
-            if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::SHIFT, Key::F3)) {
-                actions.push(Action::SearchPrev);
-            }
-            if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::NONE, Key::F3)) {
-                actions.push(Action::SearchNext);
-            }
-            if mac {
-                let cmd = Modifiers::MAC_CMD;
-                if i.consume_shortcut(&KeyboardShortcut::new(cmd | Modifiers::SHIFT, Key::G)) {
-                    actions.push(Action::SearchPrev);
-                }
-                if i.consume_shortcut(&KeyboardShortcut::new(cmd, Key::G)) {
-                    actions.push(Action::SearchNext);
-                }
-            }
-        });
-        let typing = ctx.egui_wants_keyboard_input();
-        let help = ctx.input(|i| {
-            i.events
-                .iter()
-                .any(|e| matches!(e, egui::Event::Text(t) if t == "?"))
-        });
-        if help && !typing {
-            actions.push(Action::ToggleShortcuts);
-        }
-    }
-
     /// Settles the typed text after the debounce and makes the active tab run the
     /// settled query (a new search cancels the tab's previous one).
     fn run_search(&mut self, ctx: &egui::Context, repaint: &Repaint) {
@@ -538,46 +469,6 @@ impl BracerayApp {
         }
         if let Some(i) = out.jump {
             actions.push(Action::SearchJump(i));
-        }
-    }
-
-    fn drag_and_drop(&mut self, ctx: &egui::Context, actions: &mut Vec<Action>) {
-        let (hovering, dropped) = ctx.input(|i| {
-            let dropped: Vec<PathBuf> = i
-                .raw
-                .dropped_files
-                .iter()
-                .map(|f| f.path().to_path_buf())
-                .filter(|p| !p.as_os_str().is_empty())
-                .collect();
-            (!i.raw.hovered_files.is_empty(), dropped)
-        });
-        actions.extend(dropped.into_iter().map(Action::Open));
-        if hovering {
-            let rect = ctx.content_rect();
-            let painter = ctx.layer_painter(egui::LayerId::new(
-                egui::Order::Foreground,
-                egui::Id::unique("drop_zone"),
-            ));
-            let accent = if ctx.theme() == egui::Theme::Dark {
-                theme::ACCENT_DARK
-            } else {
-                theme::ACCENT_LIGHT
-            };
-            painter.rect(
-                rect.shrink(6.0),
-                12.0,
-                accent.gamma_multiply(0.12),
-                egui::Stroke::new(2.0, accent),
-                egui::StrokeKind::Inside,
-            );
-            painter.text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                "Drop to open",
-                egui::FontId::proportional(28.0),
-                accent,
-            );
         }
     }
 }

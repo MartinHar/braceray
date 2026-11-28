@@ -11,10 +11,10 @@
 ## Current status
 | Field | Value |
 |---|---|
-| **Current step** | 11 — Breadcrumbs & copy |
-| **Status** | 🟦 In progress |
-| **Current sub-task** | 11b app: breadcrumb bar, copy actions, size guard |
-| **Next action** | `TreeModel` ancestor rows + cached breadcrumb chain in `TreeView`, then `ui/breadcrumb.rs` |
+| **Current step** | 12 — MVP hardening & release v0.1.0 |
+| **Status** | ⬜ Not started |
+| **Current sub-task** | — |
+| **Next action** | Martin reviews step 11 (try Ctrl/Cmd+C in the tree and Export… by hand); then start step 12 |
 | **Last updated** | 2026-11-28 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -42,7 +42,7 @@
 | 08 | Raw text view | MVP | ✅ | 2026-11-27 | 2026-11-27 | ebda464 (8a), d4c6a23 (8b) |
 | 09 | Search engine (core) | MVP | ✅ | 2026-11-27 | 2026-11-27 | 2419a48 |
 | 10 | Search UI | MVP | ⚠️ | 2026-11-27 | 2026-11-27 | de4c6e2 (10a), e8bbdd6 (10b) |
-| 11 | Breadcrumbs & copy | MVP | 🟦 | 2026-11-28 | | |
+| 11 | Breadcrumbs & copy | MVP | ✅ | 2026-11-28 | 2026-11-28 | fd02f47 (11a), 2bb48fc (fix), COMMIT_11B (11b) |
 | 12 | MVP hardening & release v0.1.0 | MVP | ⬜ | | | |
 | 13 | Advanced search (regex, keys/values) | v1 | ⬜ | | | |
 | 14 | JSONPath queries | v1 | ⬜ | | | |
@@ -51,7 +51,7 @@
 | 17 | Export JSON / CSV · release v1.0.0 | v1 | ⬜ | | | |
 | 18 | Diff two files · release v2.0.0 | v2 | ⬜ | | | |
 
-**MVP:** 10 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
+**MVP:** 11 / 12 · **v1:** 0 / 5 · **v2:** 0 / 1
 
 ### MVP time estimate (made 2026-11-25, after step 01)
 About **15–20 working sessions** for steps 02–12, or **2–4 calendar weeks**. At 1–2 sessions a day it's about 2–3 weeks; at a few sessions a week, about 5–6. Step 01 took one session. Update this when real numbers differ.
@@ -565,30 +565,43 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - 024: one bar for all tabs, disabled v1 controls, cursor from the selection, retry while searching, lazy row info, highlight sources, history rule, copy-all to file above 10k, own search pool, how "first result < 200 ms" is measured.
 
 ### Step 11 — Breadcrumbs & copy
-**Status:** 🟦 In progress · **Started:** 2026-11-28 · **Finished:** —
+**Status:** ✅ Done · **Started:** 2026-11-28 · **Finished:** 2026-11-28
 
 **Plan**
 - [x] Core `path/`: `PathFormat` (JSONPath RFC 9535, jq, JavaScript with root name, JSON Pointer), quoting/escaping per format, reserved words; `decode_string` (shared with `decode_key`); split into `path/{mod,decode,tests}.rs`
 - [x] Core tests: table tests (spaces, quotes, dots, unicode, empty, numeric-looking, reserved words, control chars) for every format; proptest random keys → path → resolve with a reference (`serde_json_path` for JSONPath, `Value::pointer`) → same value; optional `jq` / `node` check when installed
 - [x] Core `copy`: streaming re-formatter for a byte range (raw, pretty with indent, minified, string contents) with cancel + progress, no DOM; tests vs serde (parsed values equal), bench 10 MB < 300 ms
-- [ ] App: `TreeModel` ancestor rows + `TreeView` cached breadcrumb chain and path segments of the selection
-- [ ] App `ui/breadcrumb.rs`: bar under the toolbar, clickable segments, collapse in the middle with `…` to expand, sibling dropdown on hover (first 200 + "…", virtualized), copy-path button + format dropdown (last choice in settings)
-- [ ] App copy: context menu (Copy path ▸ formats, Copy value / formatted / minified / key / string contents), copy job with progress for big values, size guard dialog (> 50 MB setting: Export… / Copy anyway / Cancel), export raw range via save dialog on a worker, toasts ("Copied JSONPath", "Copied 12.4 MB")
-- [ ] Shortcuts: Ctrl/Cmd+Shift+C copy path (last format), Ctrl/Cmd+C copy value when the tree has focus; shortcuts dialog
-- [ ] Settings: path format, JS root name, copy size limit (settings window)
-- [ ] kittests: breadcrumb click selects the ancestor, sibling dropdown jumps, copy actions produce the expected clipboard text, size guard appears above the limit, 1M-child array navigation
-- [ ] Check in the app with egui-mcp (1M-child array, deep file, big value copy)
-- [ ] Docs: DECISIONS, PERF, CHANGELOG, PROGRESS
+- [x] App: `TreeModel` ancestor rows + `TreeView` cached breadcrumb chain and path segments of the selection
+- [x] App `ui/breadcrumb.rs`: bar under the toolbar, clickable segments, collapse in the middle with `…` to expand, sibling dropdown on hover (first 200 + "…", virtualized), copy-path button + format dropdown (last choice in settings)
+- [x] App copy: context menu (Copy path ▸ formats, Copy value / formatted / minified / key / string contents), copy job with progress for big values, size guard dialog (> 50 MB setting: Export… / Copy anyway / Cancel), export raw range via save dialog on a worker, toasts ("Copied JSONPath", "Copied 12.4 MB")
+- [x] Shortcuts: Ctrl/Cmd+Shift+C copy path (last format), Ctrl/Cmd+C copy value when the tree has focus; shortcuts dialog
+- [x] Settings: path format, JS root name, copy size limit (settings window)
+- [x] kittests: breadcrumb click selects the ancestor, sibling dropdown jumps, copy actions produce the expected clipboard text, size guard appears above the limit, 1M-child array navigation
+- [x] Check in the app with egui-mcp (1M-child array, deep file, big value copy) — also on `orders_2g.json`; fixes found: segment of a not-yet-prepared row vanished (now a spinner + prepare), "all levels" took half the window (now a ~4-line scroll area)
+- [x] Docs: DECISIONS, PERF, CHANGELOG, PROGRESS
 
 **Acceptance criteria** (copied from the step file)
 - [x] Paths for keys with spaces, quotes, dots, unicode, empty string, numeric-looking keys and reserved words are correct in every format (table-driven tests). (`path::tests::expected_text_per_format`, 30 tricky keys × 4 formats, top level and nested)
 - [x] Each copied path, evaluated by a reference implementation over `serde_json::Value` (JSONPath / Pointer in tests; jq if available in CI, optional), returns the selected value. (`serde_json_path` (RFC 9535) + `Value::pointer`: table, proptest of random keys with/without `\u` escapes, and every value of random documents via `node_at_offset` + `path_of`; jq 1.7.1 and node 23 run the jq / JavaScript paths when installed)
-- [ ] Copying a 10 MB object takes < 300 ms; copy formatted equals the serde pretty output (whitespace style aside: compare parsed values).
-- [ ] The size guard triggers above the limit.
-- [ ] Breadcrumb navigation and sibling dropdown work on a 1M-child array.
+- [x] Copying a 10 MB object takes < 300 ms; copy formatted equals the serde pretty output (whitespace style aside: compare parsed values). (criterion `copy_10m` on a 10 MB orders object: raw 1.1 ms, pretty 13.2 ms, minified 10.9 ms; in the app a 6.9 MB array → 9.89 MB pretty on the clipboard. Pretty output equals `to_string_pretty` byte for byte for compact serde input (proptest, indent 2 and 4) and parses to the same value for every value of random documents)
+- [x] The size guard triggers above the limit. (kittest `size_guard_asks_above_the_limit`: under the limit copies at once, above it asks, Cancel / Copy anyway (worker job); app: 2.15 GB root → "This value is 2.15 GB…" with Export… / Copy anyway / Cancel; Export… opens the save panel)
+- [x] Breadcrumb navigation and sibling dropdown work on a 1M-child array. (kittest `million_child_array_navigation_and_siblings`; app: `million.json` `[523456]` → hover → `[3]`, and `orders_2g` root (2,450,341) `[1234567]` → "… 2,450,141 more" → `[5]`)
 
 **Quality gates (last run)**
-- [ ] fmt · [ ] clippy · [ ] tests · [ ] cargo deny · [ ] benches
+- [x] fmt · [x] clippy (also `--target x86_64-apple-darwin` and core for `x86_64-pc-windows-msvc`) · [x] tests (288 passed, 0 failed, 9 ignored) · [x] cargo deny · [x] benches (`copy_10m`: raw 1.1 ms, pretty 13 ms, minified 11 ms; all other benches within 10 % of step 09/10 on a re-run, see PERF.md). Run 2026-11-28 on M3 Pro, macOS.
+
+**What was done**
+- Core: `path::{PathFormat, format_path}` (JSONPath RFC 9535 / jq / JavaScript / JSON Pointer, per-format quoting, decoded keys), `copy::{render, write_to}` (raw / pretty / minified / string contents, one pass, no DOM, cancel + progress per 4 MB of input and output, indentation capped at 64 levels, output limit), `TreeModel::ancestors`, `Error::{CopyTooLarge, Write}`. Tests: tables, proptests against `serde_json_path` / `Value::pointer`, jq and node when installed, `tests/paths.rs` (every value of random documents), bench `copy`.
+- App: breadcrumb bar (`ui::breadcrumb`), size guard (`ui::copy_guard`), per-tab `copy_job::CopyState` (sync ≤ 1 MB, worker above, export job), copy actions in the context menu and shortcuts, settings (path format, JS root, copy limit) in the settings window, recording clipboard hook for tests; kittests `tests/copy.rs` (6) and `copy_job` unit tests (4).
+- Security review fix: pretty copy of `[[[[…` could grow with depth² before the next cancel / flush check (2bb48fc).
+
+**Known limitations / follow-ups**
+- Copy path of a value tens of thousands of levels deep reads every level on the UI thread (`deep_100k` middle, 56,250 levels: one ~17 ms frame) — I-016.
+- Not driven end to end in the app: Ctrl/Cmd+C (egui-mcp sends a key, not egui's copy event; the copy event is covered by kittests) and the Export… save panel (out-of-process macOS panel; `export_to` is unit tested). Please try both by hand.
+- The sibling list shows `key` / `[i]` only (no value preview).
+
+**Decisions** (also in docs/DECISIONS.md)
+- 025: dot-form rules per format, reference checks, whitespace-only formatter with bounded output, guard on input size and sync/worker split, breadcrumb chain from the row model, hover dropdown, clipboard and test hook, remembered format.
 
 ---
 
@@ -602,6 +615,13 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-28 (1) · Step 11
+- Did: step 11 end to end. Core path formats (JSONPath / jq / JavaScript / Pointer) checked against `serde_json_path`, `Value::pointer`, jq 1.7.1 and node; streaming copy formatter (exact serde pretty for compact input, 10 MB pretty in 13 ms); `TreeModel::ancestors`. App breadcrumb bar (collapse, all levels, hover sibling list), copy path button + format menu + Ctrl/Cmd+Shift+C, copy value styles, size guard with Export…, settings. Checked in the app on `orders_2g`, a 1M array and `deep_100k` via egui-mcp; fixed two things found that way (spinner for unprepared segments, scrolling "all levels" area)
+- Security review: pretty copy of deeply nested input grew with depth² between checks → indentation cap, output-based checks, output limit (2bb48fc)
+- Tests: 288 passed, 0 failed, 9 ignored · fmt/clippy (incl. x86_64 macOS) / deny clean · benches within 10 % on a re-run (first run under load)
+- Commits: fd02f47, 2bb48fc, COMMIT_11B; not pushed
+- Next: Martin reviews step 11; then step 12
 
 ### 2026-11-27 (7) · Step 10 review
 - Martin checked step 10 in the app ("all looks good"); the 150 ms debounce stays. Step stays ⚠️ only for the real-Windows shortcut check (I-015, step 12)
@@ -699,4 +719,5 @@ Issues found during the build that are not fixed yet.
 | I-013 | 08 | Low | Tree and raw panes can't be hidden yet (architecture §7: "either can be hidden"); only the split is resizable. Add View toggles (toolbar + shortcuts) and persist them | 12 | Open |
 | I-015 | 10 | Low | Search shortcuts (Ctrl+F, Ctrl+Shift+F, F3/Shift+F3, Enter/Shift+Enter, Esc) checked on macOS and in kittests with egui told it runs on Windows, but not on a real Windows machine | 12 | Open |
 | I-014 | 09 | Medium | Search workers run on the global rayon pool, which the index build also uses. A search started while a 2 GB index builds may wait for pool threads (up to the build time) before its first result; seen in a test where one search's workers queued ~40 ms behind another's. Fix in step 10: a dedicated search pool (or a few dedicated threads), measured with "first result < 200 ms" during indexing | 10 | Resolved (step 10: own search pool; first result 17–35 ms during a 2 GB build) |
+| I-016 | 11 | Low | Copy path (button, menu, Ctrl/Cmd+Shift+C) of a value tens of thousands of levels deep builds the path on the UI thread, O(depth) row reads: one ~17 ms frame at depth 56,250 (`deep_100k`). Fix: build the path from the address on a worker, together with I-012 | 12 | Open |
 | I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Open |

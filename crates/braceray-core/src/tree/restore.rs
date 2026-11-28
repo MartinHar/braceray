@@ -63,6 +63,51 @@ impl TreeModel {
         Some(out)
     }
 
+    /// Rows of the value rows from the top-level value down to `row` (included when it is
+    /// a value row; group rows are skipped). One pass over the segments.
+    ///
+    /// # Example
+    /// ```
+    /// use braceray_core::index::{build_bytes, IndexOptions};
+    /// use braceray_core::nav::Navigator;
+    /// use braceray_core::tree::TreeModel;
+    /// use braceray_core::{CancelToken, Progress};
+    ///
+    /// let bytes = br#"{"a": [10, 20, 30]}"#;
+    /// let index = build_bytes(bytes, &IndexOptions::default(), &CancelToken::new(), &Progress::default())?;
+    /// let nav = Navigator::new(bytes, &index);
+    /// let mut tree = TreeModel::new(&nav, 2);
+    /// tree.expand(&nav, 0); // root → "a"
+    /// tree.expand(&nav, 1); // "a" → groups [0 … 1], [2]
+    /// tree.expand(&nav, 3); // [2] → 30
+    /// assert_eq!(tree.ancestors(4), vec![0, 1, 4]); // root, "a", 30 (group row 3 skipped)
+    /// assert_eq!(tree.ancestors(3), vec![0, 1]);
+    /// # Ok::<(), braceray_core::Error>(())
+    /// ```
+    pub fn ancestors(&self, row: u64) -> Vec<u64> {
+        let Some((s, _)) = self.locate(row) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        let mut depth = self.segs[s].depth;
+        if self.segs[s].list.unit == 1 {
+            out.push(row);
+        }
+        for seg in self.segs[..s].iter().rev() {
+            if seg.depth < depth {
+                depth = seg.depth;
+                if seg.list.unit == 1 {
+                    out.push(seg.end_row() - 1);
+                }
+                if depth == 0 {
+                    break;
+                }
+            }
+        }
+        out.reverse();
+        out
+    }
+
     /// Expands what is needed to show the value at `address` and returns its row.
     pub fn reveal(&mut self, nav: &Navigator<'_>, address: &[u64]) -> Result<u64, Reveal> {
         if self.segs.is_empty() {

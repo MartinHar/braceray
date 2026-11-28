@@ -29,8 +29,12 @@ use crate::nav::PathSegment;
 /// Default root name of JavaScript paths.
 pub const DEFAULT_JS_ROOT: &str = "data";
 
-/// A path syntax.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+/// A path syntax (stored in the settings as `"jsonpath"`, `"jq"`, `"javascript"`,
+/// `"pointer"`).
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
 pub enum PathFormat {
     /// `$.orders[3].customer.email` · `$['weird key'][0]`
     #[default]

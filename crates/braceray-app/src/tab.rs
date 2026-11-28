@@ -11,10 +11,12 @@ use braceray_core::job::{JobEvent, JobHandle, Repaint};
 use braceray_core::tree::preview::{PREVIEW_BYTES, Preview};
 use braceray_core::{Document, Error, Validation};
 
+use crate::copy_job::CopyState;
 use crate::format;
 use crate::panes::Panes;
 use crate::search_view::TabSearch;
 use crate::tree_view::{Source, TreeView};
+use crate::ui::breadcrumb::BreadcrumbState;
 
 /// How often the file is checked for changes on disk.
 pub const CHANGE_CHECK_EVERY: Duration = Duration::from_secs(5);
@@ -130,6 +132,10 @@ pub struct OpenDocument {
     pub panes: Panes,
     /// The search over this file.
     pub search: TabSearch,
+    /// Value copies and exports.
+    pub copy: CopyState,
+    /// The breadcrumb bar.
+    pub crumbs: BreadcrumbState,
     /// When the file was opened (or reloaded).
     pub opened: Instant,
     /// Time from opening to the first frame with tree rows.
@@ -161,6 +167,8 @@ impl OpenDocument {
             tree: None,
             panes: Panes::default(),
             search: TabSearch::default(),
+            copy: CopyState::default(),
+            crumbs: BreadcrumbState::default(),
             opened: Instant::now(),
             first_rows: None,
             group_size: env.group_size,
@@ -183,6 +191,8 @@ impl OpenDocument {
         self.tree = None;
         self.panes = Panes::default();
         self.search.reset();
+        self.copy = CopyState::default();
+        self.crumbs = BreadcrumbState::default();
         self.opened = Instant::now();
         self.first_rows = None;
         self.preview_job = None;
@@ -359,7 +369,10 @@ impl OpenDocument {
 
     /// `true` while the open/index job or a search runs.
     pub fn is_busy(&self) -> bool {
-        self.job.is_some() || self.search.is_busy() || self.search.copy.is_busy()
+        self.job.is_some()
+            || self.search.is_busy()
+            || self.search.copy.is_busy()
+            || self.copy.is_busy()
     }
 
     /// The mapped document, once known.

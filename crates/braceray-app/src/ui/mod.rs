@@ -3,6 +3,8 @@
 
 pub mod banner;
 pub mod body;
+pub mod breadcrumb;
+pub mod copy_guard;
 pub mod debug_overlay;
 pub mod empty;
 pub mod goto;
@@ -20,6 +22,8 @@ pub mod vlist;
 
 use std::path::PathBuf;
 
+use braceray_core::copy::CopyStyle;
+use braceray_core::path::PathFormat;
 use eframe::egui::{self, Role};
 
 /// Something the user asked for.
@@ -75,6 +79,21 @@ pub enum Action {
     SearchHistory(String),
     /// Open a file with the system's default app (the "Copy all paths" file).
     OpenExternal(PathBuf),
+    /// Copy the path of the tree selection: in this format (which becomes the default),
+    /// or in the last one.
+    CopyPath(Option<PathFormat>),
+    /// Copy the selected value in a style.
+    CopyValue(CopyStyle),
+    /// Copy the selected member's key (decoded).
+    CopyKey,
+    /// The size guard's "Copy anyway".
+    CopyAnyway,
+    /// The size guard's "Export…".
+    ExportValue,
+    /// The size guard's "Cancel".
+    CancelGuard,
+    /// Stop a running copy or export.
+    CancelCopy,
 }
 
 /// Sets the accessible name of an icon-only widget (screen readers, kittest, egui_mcp).

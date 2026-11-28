@@ -1,6 +1,7 @@
 //! Braceray desktop app (egui). The binary in `main.rs` is a thin launcher around [`BracerayApp`].
 
 mod app;
+pub mod copy_job;
 pub mod format;
 pub mod panes;
 pub mod raw_view;
