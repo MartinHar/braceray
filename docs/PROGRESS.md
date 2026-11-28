@@ -13,12 +13,12 @@
 |---|---|
 | **Current step** | 12 — MVP hardening & release v0.1.0 |
 | **Status** | 🟦 In progress |
-| **Current sub-task** | 12a performance verification |
-| **Next action** | 12b: fuzz runs, panic hook + crash dialog, CI tests back on |
+| **Current sub-task** | 12b robustness |
+| **Next action** | 12b: open every catalogue fixture via egui-mcp; close tabs during index / search / copy (memory back to baseline); modify file during indexing |
 | **Last updated** | 2026-11-28 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
-| **CI on `main`** | Run 46037886367 (commit b70d2df): Windows ✅ macOS ✅ Linux ✅ deny ✅ |
+| **CI on `main`** | Run 46114991172 (commit 6530f2d): Windows ✅ macOS ✅ Linux ✅ fixtures + benches ✅ deny ✅ — tests run in CI again |
 
 ## Blockers / questions for Martin
 - [x] 2026-11-25 · Step 01 · GitHub repo `MartinHar/braceray` doesn't exist yet · Resolved: Martin approved a public repo; asked that CI not run tests until near the end
@@ -620,7 +620,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
   - [x] Panic hook: crash log in the config dir + dialog "Braceray hit a bug. Log saved to … [Open issue on GitHub]" (prefilled issue URL, nothing sent)
   - [ ] Open every catalogue fixture (encoding, `invalid_*`, 5 GB sparse) through the UI via egui-mcp: no panics, clear messages
   - [ ] Close a tab during indexing / search / copy: memory back to baseline, no panics; modify the file during indexing → reload banner
-  - [ ] CI runs `cargo test` again + generates the 100 MB fixture set (I-001, I-002); fix the known test flakes (I-010, I-011 ✅)
+  - [x] CI runs `cargo test` again + generates the 100 MB fixture set (I-001, I-002); fix the known test flakes (I-011 ✅; I-010 not seen in CI so far). Fixed on the way: job repaint race, Windows `\` paths and 100 ns mtimes, search `wait_jump` returning before the tree reveal, cancel headroom on CI
   - [ ] Open backlog items planned for step 12 (I-007 macOS Open With, I-008, I-009, I-012/I-016, I-013 pane toggles): fix or move to a later step with Martin's OK
 - 12c branding
   - [ ] Icon SVG (`{ }` + cyan scan beam on a dark rounded square) → PNG 1024…16, `.icns`, `.ico`; window icon via `ViewportBuilder::with_icon`
@@ -643,7 +643,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [ ] `CHANGELOG.md` has a `[0.1.0]` section.
 
 **Quality gates (last run)**
-- [x] fmt · [x] clippy (also `gen-fixtures --target x86_64-apple-darwin`) · [x] tests (290 passed, 0 failed, 9 ignored) · [x] cargo deny · [ ] benches. Run 2026-11-28 on M3 Pro, macOS.
+- [x] fmt · [x] clippy (also x86_64 macOS / Windows core, and `--features alloc-stats`) · [x] tests (296 passed, 0 failed, 9 ignored; CI green on 3 OSes) · [x] cargo deny · [ ] benches. Run 2026-11-28 on M3 Pro, macOS.
 
 **What was done**
 - 12a: `gen-fixtures bench-big` (`tools/fixtures/src/bench_big/`); first run on M3P recorded in PERF.md (all measured targets ✅).
@@ -661,6 +661,13 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Commits: abc1234, def5678
 - Next: …
 -->
+
+### 2026-11-28 (2) · Step 12
+- Did: started step 12. `gen-fixtures bench-big` (all measured MVP targets ✅ on M3P, PERF.md); crash handler (log + dialog process + prefilled issue, ADR 026); fuzzed 3 targets 11 min each, 0 crashes; I-011 fixed (own test binary); `alloc-stats` heap counter (ADR 027, Martin OK'd the `unsafe` as measurement-only): 476 MB with a 471 MB index, 5 MB from cache; CI runs tests again + fixtures/bench job (I-001, I-002, I-006 resolved)
+- CI: first runs red (cancel limit on slow runner, Windows paths / 100 ns mtimes, repaint race, search `wait_jump` too early); all fixed → run 46114991172 green on Windows, macOS, Linux
+- Tests: 296 passed, 0 failed, 9 ignored · fmt/clippy/deny clean
+- Commits: 589d0fc … 6530f2d; pushed (Martin's OK)
+- Next: rest of 12b (UI robustness via egui-mcp), then 12c branding, 12d release workflow, 12e docs
 
 ### 2026-11-28 (1) · Step 11
 - Did: step 11 end to end. Core path formats (JSONPath / jq / JavaScript / Pointer) checked against `serde_json_path`, `Value::pointer`, jq 1.7.1 and node; streaming copy formatter (exact serde pretty for compact input, 10 MB pretty in 13 ms); `TreeModel::ancestors`. App breadcrumb bar (collapse, all levels, hover sibling list), copy path button + format menu + Ctrl/Cmd+Shift+C, copy value styles, size guard with Export…, settings. Checked in the app on `orders_2g`, a 1M array and `deep_100k` via egui-mcp; fixed two things found that way (spinner for unprepared segments, scrolling "all levels" area)
@@ -751,8 +758,8 @@ Issues found during the build that are not fixed yet.
 
 | ID | Found in step | Severity | Description | Planned fix (step) | Status |
 |---|---|---|---|---|---|
-| I-001 | 01 | Low | CI doesn't run `cargo test` (Martin's request); egui_kittest harness not proven in CI | 12 | In progress (step 12: `cargo test --workspace` on all 3 OSes in ci.yml; resolved once a pushed run is green) |
-| I-002 | 02 | Low | CI doesn't generate the 100 MB fixture set (testing-strategy says it should); add with the test step | 12 | In progress (step 12: Linux job `fixtures + benches (report)`; resolved once a pushed run is green) |
+| I-001 | 01 | Low | CI doesn't run `cargo test` (Martin's request); egui_kittest harness not proven in CI | 12 | Resolved (step 12: `cargo test --workspace --no-fail-fast` on all 3 OSes; green in run 46114991172 after fixing 3 test races and 2 platform assumptions) |
+| I-002 | 02 | Low | CI doesn't generate the 100 MB fixture set (testing-strategy says it should); add with the test step | 12 | Resolved (step 12: Linux job `fixtures + benches (report)`, green) |
 | I-003 | 04 | Low | Index build is limited by the sequential token consumer (~0.9 s of the 1.18 s for 2 GB). A per-chunk grammar check + parallel stitch could approach memory bandwidth. Targets are met, so only if later profiling needs it | 12 | Open |
 | I-004 | 04 | Low | x86 speed only measured under Rosetta; measure `fast_index_2g` on a real Windows x64 machine (reference machine B) | 12 | Open |
 | I-005 | 05 | Low | `index_100m/scalar_index` (the reference oracle only) runs at 139–147 ms or 270–300 ms for identical source depending on the build path: code-alignment sensitivity of its byte loop. Production builders are unaffected. Possible fix: `-C llvm-args=-align-loops=64` for benches, or restructure the loop if it ever matters | 12 | Open |
@@ -766,4 +773,4 @@ Issues found during the build that are not fixed yet.
 | I-015 | 10 | Low | Search shortcuts (Ctrl+F, Ctrl+Shift+F, F3/Shift+F3, Enter/Shift+Enter, Esc) checked on macOS and in kittests with egui told it runs on Windows, but not on a real Windows machine | 12 | Open |
 | I-014 | 09 | Medium | Search workers run on the global rayon pool, which the index build also uses. A search started while a 2 GB index builds may wait for pool threads (up to the build time) before its first result; seen in a test where one search's workers queued ~40 ms behind another's. Fix in step 10: a dedicated search pool (or a few dedicated threads), measured with "first result < 200 ms" during indexing | 10 | Resolved (step 10: own search pool; first result 17–35 ms during a 2 GB build) |
 | I-016 | 11 | Low | Copy path (button, menu, Ctrl/Cmd+Shift+C) of a value tens of thousands of levels deep builds the path on the UI thread, O(depth) row reads: one ~17 ms frame at depth 56,250 (`deep_100k`). Fix: build the path from the address on a worker, together with I-012 | 12 | Open |
-| I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Open |
+| I-006 | 05 | Medium | Index cache behaviour on Windows (replace/delete of an entry mapped by another instance) is handled in code but untested; run `tests/cache.rs` on Windows once CI runs tests | 12 | Resolved (step 12: `tests/cache.rs` passes on the Windows runner) |
