@@ -75,11 +75,11 @@ proptest! {
             }
             let span = Span { start: v.start as u64, end: v.end as u64 };
             for style in [CopyStyle::Pretty { indent: 2 }, CopyStyle::Minified, CopyStyle::Raw] {
-                let text = render(&bytes, span, style, &cancel, &progress).unwrap();
+                let text = render(&bytes, span, style, usize::MAX, &cancel, &progress).unwrap();
                 prop_assert_eq!(serde_value(text.as_bytes()), want.clone());
             }
             if let Value::String(s) = &want {
-                let text = render(&bytes, span, CopyStyle::StringContents, &cancel, &progress).unwrap();
+                let text = render(&bytes, span, CopyStyle::StringContents, usize::MAX, &cancel, &progress).unwrap();
                 prop_assert_eq!(&text, s);
             }
         }

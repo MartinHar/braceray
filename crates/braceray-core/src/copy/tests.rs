@@ -16,6 +16,7 @@ fn run(bytes: &[u8], style: CopyStyle) -> String {
         bytes,
         all(bytes),
         style,
+        usize::MAX,
         &CancelToken::new(),
         &Progress::default(),
     )
@@ -134,7 +135,14 @@ fn cancel_stops_and_progress_counts_input() {
         CopyStyle::Pretty { indent: 2 },
         CopyStyle::Minified,
     ] {
-        let r = render(&src, all(&src), style, &cancel, &Progress::default());
+        let r = render(
+            &src,
+            all(&src),
+            style,
+            usize::MAX,
+            &cancel,
+            &Progress::default(),
+        );
         assert!(matches!(r, Err(Error::Cancelled)), "{style:?}");
     }
     let mut s = b"\"".to_vec();
@@ -144,6 +152,7 @@ fn cancel_stops_and_progress_counts_input() {
         &s,
         all(&s),
         CopyStyle::StringContents,
+        usize::MAX,
         &cancel,
         &Progress::default(),
     );
@@ -156,7 +165,15 @@ fn cancel_stops_and_progress_counts_input() {
             &s
         };
         let progress = Progress::default();
-        render(input, all(input), style, &CancelToken::new(), &progress).unwrap();
+        render(
+            input,
+            all(input),
+            style,
+            usize::MAX,
+            &CancelToken::new(),
+            &progress,
+        )
+        .unwrap();
         assert_eq!(progress.done(), input.len() as u64);
         assert_eq!(progress.total(), input.len() as u64);
     }
@@ -212,10 +229,110 @@ fn sub_span_only() {
             bytes,
             span,
             CopyStyle::Minified,
+            usize::MAX,
             &CancelToken::new(),
             &Progress::default()
         )
         .unwrap(),
         r#"{"b":[1,2]}"#
+    );
+}
+
+/// `[[[…]]]` nested `depth` levels.
+fn nested(depth: usize) -> Vec<u8> {
+    let mut v = vec![b'['; depth];
+    v.extend(std::iter::repeat_n(b']', depth));
+    v
+}
+
+#[test]
+fn deep_nesting_is_bounded() {
+    // 200k levels: uncapped indentation would be 2 × 200k² ≈ 80 GB.
+    let src = nested(200_000);
+    let out = run(&src, CopyStyle::Pretty { indent: 2 });
+    let widest = out.lines().map(str::len).max().unwrap();
+    assert_eq!(widest, 2 * MAX_INDENT_LEVELS + 2); // the innermost `[]`
+    assert!(out.len() < 2 * src.len() * (2 * MAX_INDENT_LEVELS + 2));
+    assert_eq!(
+        run(out.as_bytes(), CopyStyle::Minified),
+        String::from_utf8(src).unwrap()
+    );
+    // Shallow documents are unaffected (they match serde exactly, see the proptest).
+    let shallow = nested(MAX_INDENT_LEVELS + 1);
+    let out = run(&shallow, CopyStyle::Pretty { indent: 1 });
+    assert_eq!(
+        out.lines().map(str::len).max().unwrap(),
+        MAX_INDENT_LEVELS + 2
+    );
+}
+
+#[test]
+fn output_limit_and_output_based_checks() {
+    let src = nested(200_000);
+    let (c, p) = (CancelToken::new(), Progress::default());
+    let limit = 10 << 20;
+    let err = render(
+        &src,
+        all(&src),
+        CopyStyle::Pretty { indent: 2 },
+        limit,
+        &c,
+        &p,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, Error::CopyTooLarge { limit: l } if l == limit as u64),
+        "{err}"
+    );
+    assert!(err.to_string().contains("10 MB"), "{err}");
+    // Input below one check step, output far above: cancel is still seen.
+    let small = nested(CHECK_EVERY / 8);
+    let cancel = CancelToken::new();
+    cancel.cancel();
+    let r = render(
+        &small,
+        all(&small),
+        CopyStyle::Pretty { indent: 8 },
+        usize::MAX,
+        &cancel,
+        &p,
+    );
+    assert!(matches!(r, Err(Error::Cancelled)));
+    // Exports flush by output size: no piece is much bigger than a check step.
+    struct Pieces(usize);
+    impl Write for Pieces {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0 = self.0.max(b.len());
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut w = Pieces(0);
+    write_to(
+        &small,
+        all(&small),
+        CopyStyle::Pretty { indent: 8 },
+        &mut w,
+        "x".as_ref(),
+        &CancelToken::new(),
+        &p,
+    )
+    .unwrap();
+    assert!(w.0 < CHECK_EVERY + 1024, "{}", w.0);
+    // At the limit exactly is fine.
+    let text = run(b"[1, 2]", CopyStyle::Minified);
+    assert_eq!(
+        render(
+            b"[1, 2]",
+            all(b"[1, 2]"),
+            CopyStyle::Minified,
+            text.len(),
+            &c,
+            &p
+        )
+        .unwrap(),
+        text
     );
 }

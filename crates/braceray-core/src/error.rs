@@ -133,6 +133,16 @@ pub enum Error {
         feature: &'static str,
     },
 
+    /// A formatted copy would be larger than the limit.
+    #[error(
+        "The formatted text would be larger than {} MB. Export the value to a file instead.",
+        limit.div_ceil(1 << 20)
+    )]
+    CopyTooLarge {
+        /// The limit in bytes.
+        limit: u64,
+    },
+
     /// Writing an export (or another output file) failed.
     #[error("Can't write {}: {source}", path.display())]
     Write {

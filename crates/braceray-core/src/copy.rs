@@ -1,6 +1,11 @@
 //! Text of a value for the clipboard or a file: as in the file, pretty, minified, or a
 //! string's decoded contents. One pass over the value's bytes with no DOM and no
-//! recursion; cancel and progress are checked every [`CHECK_EVERY`] bytes.
+//! recursion; cancel and progress are checked every [`CHECK_EVERY`] bytes of input and
+//! of output.
+//!
+//! Pretty output can be much bigger than its input (`[[[[…` gains a line of indentation
+//! per byte), so indentation stops growing at [`MAX_INDENT_LEVELS`] and [`render`] stops
+//! with [`Error::CopyTooLarge`] past its output limit.
 //!
 //! The formatter only moves whitespace: strings, numbers and literals are copied
 //! byte for byte, so the output parses to the same value as the input. Its pretty layout
@@ -13,6 +18,9 @@ use crate::error::Error;
 use crate::job::{CancelToken, Progress};
 use crate::nav::Span;
 use crate::path::{CHECK_EVERY, decode_escapes, strip_quotes};
+
+/// Deeper levels get the indentation of this level (bounds a line's indentation).
+pub const MAX_INDENT_LEVELS: usize = 64;
 
 /// How to write a value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -30,8 +38,10 @@ pub enum CopyStyle {
     StringContents,
 }
 
-/// The text of `bytes[span]` in `style` (invalid UTF-8 becomes U+FFFD). `progress`
-/// counts input bytes (its total is reset to the span length).
+/// The text of `bytes[span]` in `style` (invalid UTF-8 becomes U+FFFD). Fails with
+/// [`Error::CopyTooLarge`] once the text grows past about `max_len` bytes (checked
+/// every [`CHECK_EVERY`] output bytes). `progress` counts input bytes (its total is reset
+/// to the span length).
 ///
 /// # Example
 /// ```
@@ -42,28 +52,42 @@ pub enum CopyStyle {
 /// let bytes = br#"{"a": [1, {}], "s": "x\ty"}"#;
 /// let all = Span { start: 0, end: bytes.len() as u64 };
 /// let (c, p) = (CancelToken::new(), Progress::default());
-/// assert_eq!(render(bytes, all, CopyStyle::Minified, &c, &p)?, r#"{"a":[1,{}],"s":"x\ty"}"#);
+/// let max = usize::MAX;
+/// assert_eq!(render(bytes, all, CopyStyle::Minified, max, &c, &p)?, r#"{"a":[1,{}],"s":"x\ty"}"#);
 /// assert_eq!(
-///     render(bytes, all, CopyStyle::Pretty { indent: 2 }, &c, &p)?,
+///     render(bytes, all, CopyStyle::Pretty { indent: 2 }, max, &c, &p)?,
 ///     "{\n  \"a\": [\n    1,\n    {}\n  ],\n  \"s\": \"x\\ty\"\n}"
 /// );
 /// let s = Span { start: 20, end: 26 };
-/// assert_eq!(render(bytes, s, CopyStyle::StringContents, &c, &p)?, "x\ty");
+/// assert_eq!(render(bytes, s, CopyStyle::StringContents, max, &c, &p)?, "x\ty");
 /// # Ok::<(), braceray_core::Error>(())
 /// ```
 pub fn render(
     bytes: &[u8],
     span: Span,
     style: CopyStyle,
+    max_len: usize,
     cancel: &CancelToken,
     progress: &Progress,
 ) -> Result<String, Error> {
     let src = span.slice(bytes);
-    let mut out = Vec::with_capacity(match style {
+    let guess = match style {
         CopyStyle::Pretty { .. } => src.len() + src.len() / 4,
         _ => src.len(),
-    });
-    write_into(src, style, &mut out, cancel, progress)?;
+    };
+    let mut out = Vec::with_capacity(guess.min(max_len));
+    let too_large = || Error::CopyTooLarge {
+        limit: max_len as u64,
+    };
+    format(src, style, &mut out, cancel, progress, &mut |out| {
+        if out.len() > max_len {
+            return Err(too_large());
+        }
+        Ok(())
+    })?;
+    if out.len() > max_len {
+        return Err(too_large());
+    }
     Ok(match String::from_utf8(out) {
         Ok(s) => s,
         Err(e) => String::from_utf8_lossy(e.as_bytes()).into_owned(),
@@ -121,18 +145,8 @@ pub fn write_to(
     out.flush().map_err(io)
 }
 
-fn write_into(
-    src: &[u8],
-    style: CopyStyle,
-    out: &mut Vec<u8>,
-    cancel: &CancelToken,
-    progress: &Progress,
-) -> Result<(), Error> {
-    format(src, style, out, cancel, progress, &mut |_| Ok(()))
-}
-
-/// Formats `src` into `out`; every [`CHECK_EVERY`] input bytes: cancel check, progress,
-/// then `flush(out)` (which may drain `out`).
+/// Formats `src` into `out`; every [`CHECK_EVERY`] input or output bytes (pretty and
+/// minified): cancel check, progress, then `flush(out)` (which may drain `out` or fail).
 fn format(
     src: &[u8],
     style: CopyStyle,
@@ -184,20 +198,22 @@ fn reformat(
     let mut depth = 0usize;
     let mut p = 0usize;
     let mut next_check = CHECK_EVERY;
+    let mut next_out = out.len() + CHECK_EVERY;
     let mut reported = 0usize;
     let newline = |out: &mut Vec<u8>, depth: usize| {
         if let Some(w) = width {
             out.push(b'\n');
-            out.resize(out.len() + w * depth, b' ');
+            out.resize(out.len() + w * depth.min(MAX_INDENT_LEVELS), b' ');
         }
     };
     while p < src.len() {
-        if p >= next_check {
+        if p >= next_check || out.len() >= next_out {
             cancel.check()?;
             progress.add((p - reported) as u64);
             reported = p;
-            next_check = p + CHECK_EVERY;
             flush(out)?;
+            next_check = p + CHECK_EVERY;
+            next_out = out.len() + CHECK_EVERY;
         }
         let b = src[p];
         match b {

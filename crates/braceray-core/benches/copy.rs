@@ -40,7 +40,7 @@ fn benches(c: &mut Criterion) {
         ("minified", CopyStyle::Minified),
     ] {
         g.bench_function(name, |b| {
-            b.iter(|| render(&bytes, all, style, &cancel, &progress).expect("render"))
+            b.iter(|| render(&bytes, all, style, usize::MAX, &cancel, &progress).expect("render"))
         });
     }
     let mut s = b"\"".to_vec();
@@ -53,7 +53,17 @@ fn benches(c: &mut Criterion) {
         end: s.len() as u64,
     };
     g.bench_function("string_contents", |b| {
-        b.iter(|| render(&s, span, CopyStyle::StringContents, &cancel, &progress).expect("render"))
+        b.iter(|| {
+            render(
+                &s,
+                span,
+                CopyStyle::StringContents,
+                usize::MAX,
+                &cancel,
+                &progress,
+            )
+            .expect("render")
+        })
     });
     g.finish();
 }
