@@ -643,7 +643,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [ ] `CHANGELOG.md` has a `[0.1.0]` section.
 
 **Quality gates (last run)**
-- [x] fmt · [x] clippy (also x86_64 macOS / Windows core) · [x] tests (301 passed, 0 failed, 9 ignored) · [x] cargo deny · [x] benches (`--quick`: all within 10 % except `cache_store`, the known noisy file-write bench: 11 ms, reruns 9–50 ms; the guard isn't on its path). Run 2026-11-28 on M3 Pro, macOS; Linux build of the guard only checked by CI.
+- [x] fmt · [x] clippy (also x86_64 macOS / Windows core) · [x] tests (306 passed, 0 failed, 9 ignored) · [x] cargo deny · [x] benches (`--quick`: all within 10 % except `cache_store`, the known noisy file-write bench: 11 ms, reruns 9–50 ms; the guard isn't on its path). Run 2026-11-28 on M3 Pro, macOS; Linux build of the guard only checked by CI.
 
 **What was done**
 - 12a: `gen-fixtures bench-big` (`tools/fixtures/src/bench_big/`); first run on M3P recorded in PERF.md (all measured targets ✅).
@@ -664,11 +664,10 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 -->
 
 ### 2026-11-28 (3) · Step 12
-- Did: 12b UI robustness through egui-mcp (Python stdio driver, opt-level 3 debug build, scratch HOME): all catalogue fixtures (36) give clear messages, no panics; close tab during index / search / copy (heap to baseline; RSS retention I-017); file modified during indexing. Truncation crashed the app with SIGBUS (the macOS "quit unexpectedly" dialog Martin saw) → SIGBUS guard in `mmap` (ADR 028), re-checked in the app. New backlog: I-017, I-018. A stray "Copied 2 B" notice appeared once in a scripted run and didn't reproduce in 3 reruns
-- Security review: handler could pair one slot's start with another's length while slots churn → per-slot seqlock + churn test
-- Tests: 301 passed, 0 failed, 9 ignored · fmt/clippy/deny clean
-- Commits: 2b0234f + seqlock fix; not pushed
-- Next: Martin: backlog items for step 12 (keep / move); then 12c branding
+- Did: 12b UI robustness through egui-mcp (Python stdio driver, opt-level 3 debug build, scratch HOME): all catalogue fixtures (36) give clear messages, no panics; close tab during index / search / copy; file modified during indexing. Truncation crashed the app with SIGBUS → SIGBUS guard in `mmap` (ADR 028; seqlock fix after the security review). Martin: "fix it now" for the step 12 backlog → I-018 early-error probe (5 GiB sparse 6.0 → 2.1 s), I-013 pane toggles, I-012/I-016 deep reveal / copy path on workers, I-009 capped scans of unindexed containers; I-017 investigated (cache write holds the index; `mi_collect` didn't help, not committed). A stray "Copied 2 B" notice appeared once in a scripted run and didn't reproduce
+- Tests: 306 passed, 0 failed, 9 ignored · fmt/clippy/deny clean · benches within noise (re-runs for `cache_store`, `prepare_root`)
+- Commits: 2b0234f, cd54040 (pushed); 93091c4, c8c488d, 322c89f, d43b851 (not pushed)
+- Next: Martin: OK for `unsafe` (objc2 app delegate) for I-007, and to push; then 12c branding
 
 ### 2026-11-28 (2) · Step 12
 - Did: started step 12. `gen-fixtures bench-big` (all measured MVP targets ✅ on M3P, PERF.md); crash handler (log + dialog process + prefilled issue, ADR 026); fuzzed 3 targets 11 min each, 0 crashes; I-011 fixed (own test binary); `alloc-stats` heap counter (ADR 027, Martin OK'd the `unsafe` as measurement-only): 476 MB with a 471 MB index, 5 MB from cache; CI runs tests again + fixtures/bench job (I-001, I-002, I-006 resolved)
