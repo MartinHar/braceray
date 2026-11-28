@@ -616,7 +616,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
   - [ ] Frame-time check of tree / raw / results on the 2 GB file with the overlay (`Ctrl+Shift+D`, exists since step 07: p50 / p99 / max over 600 frames) — re-check in the release build
 - 12b robustness
   - [ ] Fuzz all targets ≥ 10 min each (`index_any_bytes`, `search_any`, `pretty_range`; `jsonpath_parse` comes with step 14); fix crashes, add inputs to the corpus
-  - [ ] Panic hook: crash log in the config dir + dialog "Braceray hit a bug. Log saved to … [Open issue on GitHub]" (prefilled issue URL, nothing sent)
+  - [x] Panic hook: crash log in the config dir + dialog "Braceray hit a bug. Log saved to … [Open issue on GitHub]" (prefilled issue URL, nothing sent)
   - [ ] Open every catalogue fixture (encoding, `invalid_*`, 5 GB sparse) through the UI via egui-mcp: no panics, clear messages
   - [ ] Close a tab during indexing / search / copy: memory back to baseline, no panics; modify the file during indexing → reload banner
   - [ ] CI runs `cargo test` again + generates the 100 MB fixture set (I-001, I-002); fix the known test flakes (I-010, I-011)
@@ -646,6 +646,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 
 **What was done**
 - 12a: `gen-fixtures bench-big` (`tools/fixtures/src/bench_big/`); first run on M3P recorded in PERF.md (all measured targets ✅).
+- 12b: `crash` module (panic hook, crash log, dialog process, prefilled issue URL; ADR 026); unit tests + `tests/crash.rs` runs the binary with `--crash-test`; dialog checked on macOS.
 
 ---
 

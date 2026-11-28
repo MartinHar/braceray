@@ -292,6 +292,19 @@ pub fn default_path() -> Option<PathBuf> {
     Some(dir.join("settings.json"))
 }
 
+/// [`default_path`] when `HOME`, `APPDATA` and `XDG_CONFIG_HOME` all point at `base`
+/// (for tests that run the binary with such an environment).
+pub fn default_path_in(base: &Path) -> PathBuf {
+    let dir = if cfg!(target_os = "macos") {
+        base.join("Library/Application Support/io.github.martinhar.braceray")
+    } else if cfg!(windows) {
+        base.join("martinhar").join("braceray").join("config")
+    } else {
+        base.join("braceray")
+    };
+    dir.join("settings.json")
+}
+
 enum SaveMsg {
     Write(String),
     Flush(Sender<()>),

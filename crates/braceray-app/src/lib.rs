@@ -2,6 +2,7 @@
 
 mod app;
 pub mod copy_job;
+pub mod crash;
 pub mod format;
 pub mod panes;
 pub mod raw_view;

@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use braceray_app::{AppConfig, BracerayApp};
+use braceray_app::{AppConfig, BracerayApp, crash};
 use eframe::egui;
 
 #[global_allocator]
@@ -14,9 +14,22 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 const INSPECTION_ADDR: &str = "127.0.0.1:5719";
 
 fn main() -> eframe::Result {
+    let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    // `braceray --crash-report <log>`: the dialog process started by the panic hook.
+    if let Some(i) = args.iter().position(|a| a == crash::CRASH_REPORT_FLAG) {
+        if let Some(log) = args.get(i + 1) {
+            crash::run_dialog(std::path::Path::new(log));
+        }
+        return Ok(());
+    }
+    crash::install(braceray_app::settings::default_path().and_then(|p| p.parent().map(Into::into)));
+    if args.iter().any(|a| a == crash::CRASH_TEST_FLAG) {
+        panic!("crash test requested with {}", crash::CRASH_TEST_FLAG);
+    }
+
     // `braceray [file]`: the first argument that isn't a flag is opened.
-    let file: Option<PathBuf> = std::env::args_os()
-        .skip(1)
+    let file: Option<PathBuf> = args
+        .into_iter()
         .find(|a| !a.to_string_lossy().starts_with("--"))
         .map(PathBuf::from);
 
