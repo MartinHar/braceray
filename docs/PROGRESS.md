@@ -643,7 +643,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 - [ ] `CHANGELOG.md` has a `[0.1.0]` section.
 
 **Quality gates (last run)**
-- [x] fmt · [x] clippy (also x86_64 macOS / Windows core) · [x] tests (300 passed, 0 failed, 9 ignored) · [x] cargo deny · [x] benches (`--quick`: all within 10 % except `cache_store`, the known noisy file-write bench: 11 ms, reruns 9–50 ms; the guard isn't on its path). Run 2026-11-28 on M3 Pro, macOS; Linux build of the guard only checked by CI.
+- [x] fmt · [x] clippy (also x86_64 macOS / Windows core) · [x] tests (301 passed, 0 failed, 9 ignored) · [x] cargo deny · [x] benches (`--quick`: all within 10 % except `cache_store`, the known noisy file-write bench: 11 ms, reruns 9–50 ms; the guard isn't on its path). Run 2026-11-28 on M3 Pro, macOS; Linux build of the guard only checked by CI.
 
 **What was done**
 - 12a: `gen-fixtures bench-big` (`tools/fixtures/src/bench_big/`); first run on M3P recorded in PERF.md (all measured targets ✅).
@@ -665,8 +665,9 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 
 ### 2026-11-28 (3) · Step 12
 - Did: 12b UI robustness through egui-mcp (Python stdio driver, opt-level 3 debug build, scratch HOME): all catalogue fixtures (36) give clear messages, no panics; close tab during index / search / copy (heap to baseline; RSS retention I-017); file modified during indexing. Truncation crashed the app with SIGBUS (the macOS "quit unexpectedly" dialog Martin saw) → SIGBUS guard in `mmap` (ADR 028), re-checked in the app. New backlog: I-017, I-018. A stray "Copied 2 B" notice appeared once in a scripted run and didn't reproduce in 3 reruns
-- Tests: 300 passed, 0 failed, 9 ignored · fmt/clippy/deny clean
-- Commits: see git log (`fix: survive files truncated while mapped (SIGBUS guard)`); not pushed
+- Security review: handler could pair one slot's start with another's length while slots churn → per-slot seqlock + churn test
+- Tests: 301 passed, 0 failed, 9 ignored · fmt/clippy/deny clean
+- Commits: 2b0234f + seqlock fix; not pushed
 - Next: Martin: backlog items for step 12 (keep / move); then 12c branding
 
 ### 2026-11-28 (2) · Step 12
