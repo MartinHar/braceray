@@ -45,11 +45,33 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      # Tests are intentionally not run in CI for now (Martin's call, 2026-11-25).
-      # Run `cargo test --workspace` locally; re-enable here before the v0.1.0 release (step 12).
+      - name: Test
+        run: cargo test --workspace
 
       - name: Release build
         run: cargo build --release -p braceray-app
+
+  # The 100 MB fixture set (generator check) and the criterion benches in quick mode.
+  # Report only: shared runners are too noisy to gate on; compare with docs/PERF.md by hand.
+  fixtures-bench:
+    name: fixtures + benches (report)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Generate the 100 MB fixture set
+        run: cargo run --release -p gen-fixtures -- all --max-size 100m --out fixtures-data
+
+      - name: Benchmarks (quick)
+        shell: bash # -o pipefail, so a failing bench fails the step despite `tee`
+        run: cargo bench -p braceray-core -- --quick 2>&1 | tee bench.txt
+
+      - name: Bench summary
+        run: grep -E "^[a-z_0-9]+/[a-z_0-9]+|time:" bench.txt >> "$GITHUB_STEP_SUMMARY" || true
 
   deny:
     name: cargo deny
