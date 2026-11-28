@@ -615,7 +615,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
   - [ ] "App memory excluding the mapped file < 300 MB + index": not measurable yet (I-008) — needs a heap number in the app
   - [ ] Frame-time check of tree / raw / results on the 2 GB file with the overlay (`Ctrl+Shift+D`, exists since step 07: p50 / p99 / max over 600 frames) — re-check in the release build
 - 12b robustness
-  - [ ] Fuzz all targets ≥ 10 min each (`index_any_bytes`, `search_any`, `pretty_range`; `jsonpath_parse` comes with step 14); fix crashes, add inputs to the corpus
+  - [x] Fuzz all targets ≥ 10 min each (`index_any_bytes`, `search_any`, `pretty_range`; `jsonpath_parse` comes with step 14); fix crashes, add inputs to the corpus
   - [x] Panic hook: crash log in the config dir + dialog "Braceray hit a bug. Log saved to … [Open issue on GitHub]" (prefilled issue URL, nothing sent)
   - [ ] Open every catalogue fixture (encoding, `invalid_*`, 5 GB sparse) through the UI via egui-mcp: no panics, clear messages
   - [ ] Close a tab during indexing / search / copy: memory back to baseline, no panics; modify the file during indexing → reload banner
@@ -635,7 +635,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 
 **Acceptance criteria** (copied from the step file)
 - [ ] Every MVP target in `overview.md` is met on at least one reference machine, and the numbers are in `docs/PERF.md`.
-- [ ] Fuzzing finds no crashes in 10 min per target.
+- [x] Fuzzing finds no crashes in 10 min per target. (2026-11-28: 11 min each for `index_any_bytes`, `search_any`, `pretty_range`, 1.1–1.9 M runs each, 0 crashes; `jsonpath_parse` doesn't exist until step 14)
 - [ ] `git tag v0.1.0 && git push --tags` produces a GitHub Release with Windows zip, macOS dmg, Linux tar.gz and checksums.
 - [ ] Downloaded builds launch on a clean Windows machine and a Mac (Apple Silicon) following the README steps.
 - [ ] The release checklist in `testing-strategy.md` is completed and pasted into the release PR or issue.
