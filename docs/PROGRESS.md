@@ -85,7 +85,7 @@ Fill in with real measurements (details and machine info in `docs/PERF.md`). Mar
 |---|---|---|---|---|---|
 | First visible content (2 GB) | < 1 s | 134–163 ms open → first tree rows (preview), in-app | M3P | 07 | ✅ |
 | Full index, warm (2 GB) | < 5 s | 1.18 s (pretty) / 1.94 s (minified) | M3P | 04 | ✅ |
-| Full index, cold NVMe (2 GB) | < 10 s | ~3.0 s / 3.7 s (page cache partly evicted, not a true reboot-cold) | M3P | 04 | — |
+| Full index, cold NVMe (2 GB) | < 10 s | 2.78 s (pretty) / 3.48 s (minified) after `purge` (page cache dropped; not a reboot); first content cold 16 / 20 ms | M3P | 12 | ✅ |
 | Re-open from cache (2 GB) | < 1 s | 14 ms (pretty, entry 471 MB) / 3.6 ms (minified), warm | M3P | 05 | ✅ |
 | Plain search count, warm (2 GB) | < 1.5 s | 19–20 ms (72–93 ms first search on a fresh mapping) | M3P | 09 | ✅ |
 | Case-insensitive search (2 GB) | < 3 s | 19–82 ms (ASCII), 30 ms Unicode; `e` with 110 M matches 298 ms | M3P | 09 | ✅ |
@@ -612,7 +612,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 **Plan**
 - 12a performance
   - [x] `gen-fixtures bench-big`: generate the 2 GB fixtures if missing; open → first content, full index (warm, cold with `--cold`), index memory, re-open from cache, search cs / ci (rare + common), first result, expand root, peak RSS; Markdown rows for PERF.md, ✅/❌ vs overview.md, non-zero exit on a miss
-  - [x] Run it on M3P (both 2 GB files): every measured target met; cold needs root (Martin: `sudo` run, optional)
+  - [x] Run it on M3P (both 2 GB files): every measured target met; cold run by Martin with `sudo`: index 2.78 / 3.48 s, first content 16 / 20 ms ✅
   - [x] "App memory excluding the mapped file < 300 MB + index": `alloc-stats` measurement build (ADR 027): 476 MB steady with a 471 MB index, 979 MB peak while building, 5 MB from cache ✅
   - [ ] Frame-time check of tree / raw / results on the 2 GB file with the overlay (`Ctrl+Shift+D`, exists since step 07: p50 / p99 / max over 600 frames) — re-check in the release build
 - 12b robustness
