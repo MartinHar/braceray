@@ -9,13 +9,15 @@ use std::time::{Duration, Instant};
 use braceray_core::job::{JobEvent, JobHandle, Repaint};
 use braceray_core::nav::{Container, NavCache, Navigator, Span};
 use braceray_core::tree::preview::Preview;
-use braceray_core::tree::{Expand, Reveal, Row, RowItem, Rows, TreeModel};
+use braceray_core::tree::{Expand, Row, RowItem, Rows, TreeModel};
 use braceray_core::{Document, Index};
 
 mod crumbs;
+mod deep;
 mod keys;
 
 pub use crumbs::{LABEL_CHARS, SIBLINGS, Selected, Sibling};
+pub use deep::{DEEP_LEVELS, PathJob};
 pub use keys::TreeKey;
 
 /// Rows that `*` and "Expand all below" add before asking to continue.
@@ -80,6 +82,8 @@ pub struct TreeView {
     pub ask_continue: Option<AskContinue>,
     jobs: Vec<(u64, JobHandle<(), Duration>)>,
     then: Option<(u64, u64, Then)>,
+    /// A deep reveal running on a worker.
+    reveal_job: Option<deep::RevealJob>,
     /// Bumped by every model change (a pending "expand after prepare" is dropped then).
     version: u64,
     /// Bumped whenever rows may read differently (model change, prepared container).
@@ -130,6 +134,7 @@ impl TreeView {
             ask_continue: None,
             jobs: Vec::new(),
             then: None,
+            reveal_job: None,
             version: 0,
             generation: 0,
             rows_cache: None,
@@ -200,7 +205,7 @@ impl TreeView {
 
     /// Prepare jobs still running.
     pub fn jobs_running(&self) -> usize {
-        self.jobs.len()
+        self.jobs.len() + usize::from(self.reveal_job.is_some())
     }
 
     /// Switches to the full index, keeping the expanded rows, the selection and the top
@@ -263,6 +268,7 @@ impl TreeView {
 
     /// Polls the prepare jobs (every frame).
     pub fn poll(&mut self, repaint: &Repaint) {
+        self.poll_reveal(repaint);
         let mut done = Vec::new();
         let mut prepared = None;
         self.jobs.retain_mut(|(start, job)| match job.try_recv() {
@@ -421,28 +427,6 @@ impl TreeView {
                 levels,
                 added: result.added,
             });
-        }
-    }
-
-    /// Expands what is needed to show the value at `address` (child indices from the
-    /// top-level value), selects it and scrolls to it; waits for prepare jobs on the way.
-    pub fn reveal_address(&mut self, address: Vec<u64>, repaint: &Repaint) {
-        let nav = navigator(&self.doc, &self.source, &self.cache);
-        let before = self.model.row_count();
-        let selected = self.selected.and_then(|s| self.model.address(s));
-        let result = self.model.reveal(&nav, &address);
-        if self.model.row_count() != before {
-            // Rows were inserted: find the old selection again (it may have moved).
-            self.selected = selected.and_then(|a| self.model.reveal(&nav, &a).ok());
-            self.changed();
-        }
-        match result {
-            Ok(row) => self.select(row),
-            Err(Reveal::Pending(c)) => {
-                self.then = Some((c.start, self.version, Then::Reveal(address)));
-                self.request_prepare(c, repaint);
-            }
-            Err(Reveal::NotFound) => {}
         }
     }
 

@@ -60,12 +60,23 @@ impl BracerayApp {
             self.store.save(&self.settings);
         }
         let format = format.unwrap_or(self.settings.path_format);
+        let repaint = self.repaint();
         let Some(tab) = self.tabs.get_mut(self.active) else {
             return;
         };
         let Some(tree) = tab.tree.as_ref() else {
             return;
         };
+        if let Some(job) = tree.deep_path_job() {
+            // Tens of thousands of levels: read them on a worker (I-016).
+            let js_root = self.settings.js_root.clone();
+            tab.copy
+                .spawn_text(What::Path(format.label()), &repaint, move || {
+                    let path = job.run().ok_or(braceray_core::Error::Cancelled)?;
+                    Ok(format_path(job.document().bytes(), &path, format, &js_root))
+                });
+            return;
+        }
         let Some(path) = tree.selected_path() else {
             return;
         };
@@ -103,6 +114,7 @@ impl BracerayApp {
                 Some(k) if !sel.group => k,
                 _ => return,
             },
+            What::Path(_) => return, // paths go through `copy_path`
         };
         let doc = tree.document().clone();
         let req = Request { span, style, what };

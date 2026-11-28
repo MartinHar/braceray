@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Crash handler: on a bug the app saves a crash log in its settings folder and shows "Braceray hit a bug" with the log path and an "Open issue on GitHub" button (prefilled issue in the browser; nothing is sent automatically).
 
 ### Changed
+- Revealing a value tens of thousands of levels deep (Go to, a raw-view click, a search jump) and copying its path no longer stall a frame: above 2,000 levels the work runs in the background.
 - The tree or the raw pane can be hidden: **Tree** / **Raw** toggles in the toolbar or Ctrl/Cmd+1 / Ctrl/Cmd+2 (one always stays visible); the layout is remembered.
 - A big file that isn't valid JSON near its start (a renamed CSV or log, binary after a small value) shows its error much sooner: the first 1 MiB is checked before the full parallel scan (5 GiB test file: 6.0 → 2.1 s).
 - Searches run on their own thread pool, so a search started while a 2 GB file is indexing shows its first results as fast as on an indexed file.

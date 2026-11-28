@@ -377,3 +377,42 @@ fn million_child_array_navigation_and_siblings() {
     h.run_steps(2);
     assert_eq!(selected_address(&h), [0]);
 }
+
+/// Reveal and copy path of a value deeper than `DEEP_LEVELS` run on workers (I-012,
+/// I-016) and give the same result as the synchronous code.
+#[test]
+fn deep_reveal_and_copy_path_run_on_workers() {
+    let env = Env::new();
+    let depth = braceray_app::tree_view::DEEP_LEVELS + 3_000;
+    let text = format!("{}1{}", "[".repeat(depth), "]".repeat(depth));
+    let mut h = open(&env, env.file("deep.json", text.as_bytes()));
+    let want = vec![0; depth];
+    let repaint = braceray_core::job::no_repaint();
+    h.state_mut().tabs[0]
+        .tree
+        .as_mut()
+        .unwrap()
+        .reveal_address(want.clone(), &repaint);
+    assert!(tree(&h).is_revealing(), "deep reveal goes to a worker");
+    step_until(&mut h, "deep reveal", |a| {
+        let t = a.tabs[0].tree.as_ref().unwrap();
+        !t.is_revealing() && t.selected.and_then(|r| t.model.address(r)) == Some(want.clone())
+    });
+    assert!(tree(&h).deep_path_job().is_some());
+    h.key_press_modifiers(Modifiers::COMMAND | Modifiers::SHIFT, Key::C);
+    let start = Instant::now();
+    let text = loop {
+        h.step();
+        if let Some(t) = copied(&mut h).pop() {
+            break t;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(20),
+            "path copy timed out"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    };
+    assert_eq!(text, format!("${}", "[0]".repeat(depth)));
+    h.run_steps(2);
+    h.get_by_label("Copied JSONPath");
+}

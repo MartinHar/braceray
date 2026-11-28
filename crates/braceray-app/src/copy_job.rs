@@ -29,6 +29,8 @@ pub enum What {
     Value,
     /// A key (decoded, without quotes).
     Key,
+    /// A path, in the named format.
+    Path(&'static str),
 }
 
 /// One copy request.
@@ -169,6 +171,15 @@ impl CopyState {
         None
     }
 
+    /// Runs `work` on a worker and copies the text it returns (a deep path, I-016).
+    pub fn spawn_text<F>(&mut self, what: What, repaint: &Repaint, work: F)
+    where
+        F: FnOnce() -> Result<String, braceray_core::Error> + Send + 'static,
+    {
+        let job = JobHandle::spawn("copy-text", 0, repaint.clone(), move |_| work());
+        self.running = Some(Running::Copy(job, what));
+    }
+
     /// "Export…" in the guard: asks for a file (the dialog is created here, on the UI
     /// thread, as macOS needs) and writes the value's raw bytes on a worker.
     pub fn export(&mut self, doc: &Arc<Document>, repaint: &Repaint) {
@@ -266,6 +277,7 @@ impl CopyState {
         let text = match what {
             What::Key => "Copied key".to_owned(),
             What::Value => format!("Copied {}", format::bytes(text.len() as u64)),
+            What::Path(label) => format!("Copied {label}"),
         };
         self.notify(text, false);
     }

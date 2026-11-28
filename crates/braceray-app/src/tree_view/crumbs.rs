@@ -76,18 +76,7 @@ impl TreeView {
     /// Path of the selection from the root (empty for the root itself). Reads every
     /// level: O(depth).
     pub fn selected_path(&self) -> Option<Vec<PathSegment>> {
-        self.selected?;
-        let rows = self.crumb_rows();
-        let mut out = Vec::with_capacity(rows.len());
-        for &r in rows.iter() {
-            let v = self.value_row(r)?;
-            match (v.parent, v.child.key) {
-                (None, _) => {}
-                (Some(ContainerKind::Object), Some(k)) => out.push(PathSegment::Key(k)),
-                _ => out.push(PathSegment::Index(v.index)),
-            }
-        }
-        Some(out)
+        super::deep::path_of(&self.model, &self.nav(), self.selected?)
     }
 
     /// The selected value (group rows: their container as a value).
