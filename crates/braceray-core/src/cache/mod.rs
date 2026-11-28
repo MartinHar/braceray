@@ -410,13 +410,14 @@ mod tests {
     #[test]
     fn mtime_encoding() {
         assert_eq!(mtime_nanos(None), i128::MIN);
+        // Multiples of 100 ns: Windows `SystemTime` has 100 ns resolution.
         assert_eq!(
-            mtime_nanos(Some(UNIX_EPOCH + std::time::Duration::from_nanos(5))),
-            5
+            mtime_nanos(Some(UNIX_EPOCH + std::time::Duration::from_nanos(500))),
+            500
         );
         assert_eq!(
-            mtime_nanos(Some(UNIX_EPOCH - std::time::Duration::from_nanos(5))),
-            -5
+            mtime_nanos(Some(UNIX_EPOCH - std::time::Duration::from_nanos(500))),
+            -500
         );
     }
 }

@@ -135,15 +135,34 @@ fn wait_search(h: &mut Harness<'_, BracerayApp>) {
     });
 }
 
-/// Waits until a jump has selected its node in the tree.
+/// Waits until a jump has selected its node in the tree: the selected row's key, or its
+/// value if that isn't a container, holds the current match. (Checking only that no job
+/// runs could pass before the reveal job even started, on slow CI runners.)
 fn wait_jump(h: &mut Harness<'_, BracerayApp>) {
     step_until(h, "jump", |a| {
         let t = &a.tabs[0];
         !t.search.is_stepping()
             && t.search.pending_jump.is_none()
             && !t.panes.is_locating()
-            && t.tree.as_ref().is_some_and(|v| v.jobs_running() == 0)
+            && t.tree.as_ref().is_some_and(|v| {
+                v.jobs_running() == 0
+                    && t.search
+                        .current
+                        .is_none_or(|c| selection_holds(v, c.m.offset))
+            })
     });
+}
+
+fn selection_holds(view: &TreeView, offset: u64) -> bool {
+    use braceray_core::tree::RowItem;
+    let Some(row) = view.selected.and_then(|r| view.row(r)) else {
+        return false;
+    };
+    let RowItem::Value(v) = row.item else {
+        return false;
+    };
+    let inside = |s: braceray_core::nav::Span| s.start <= offset && offset < s.end;
+    v.child.key.is_some_and(inside) || (v.container.is_none() && inside(v.child.value))
 }
 
 fn count_label(h: &Harness<'_, BracerayApp>) -> String {
