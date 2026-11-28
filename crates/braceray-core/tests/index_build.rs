@@ -218,3 +218,47 @@ proptest! {
         check_equivalent(&bytes, "random")?;
     }
 }
+
+/// Files over 4 MiB with an error in the first MiB take the early-error path (I-018); the
+/// result must still equal the reference, and errors after the first MiB, or a valid
+/// prefix, go through the normal build.
+#[test]
+fn early_error_path_equals_reference() {
+    let mut valid = b"[".to_vec();
+    while valid.len() < 5 << 20 {
+        valid.extend_from_slice(b"{\"k\": \"v\\n\", \"n\": [1, 2.5e3, null]},\n");
+    }
+    valid.extend_from_slice(b"0]\n");
+    let mut cases: Vec<(&str, Vec<u8>)> = Vec::new();
+    // `[]` then spaces then NUL bytes (the 5 GiB sparse fixture in small).
+    let mut sparse = b"[]".to_vec();
+    sparse.resize(8194, b' ');
+    sparse.resize(5 << 20, 0);
+    cases.push(("sparse", sparse));
+    // Not JSON from the first byte: CSV.
+    cases.push(("csv", b"a,b,c\n1,2,3\n".repeat(500_000)));
+    // Error at 1000 bytes in, inside a string that is still open at the probe limit.
+    let mut early = valid.clone();
+    early[1000] = b'}';
+    cases.push(("early", early));
+    let mut open_string = valid.clone();
+    open_string[100] = b'"';
+    cases.push(("string over the probe", open_string));
+    // Error just past the probe.
+    let mut late = valid.clone();
+    let at = (1 << 20) + 17;
+    late[at] = b'@';
+    cases.push(("late", late));
+    cases.push(("valid", valid));
+    for (name, bytes) in cases {
+        let want = reference(&bytes, None);
+        let got = index::build_bytes(
+            &bytes,
+            &IndexOptions::default(),
+            &CancelToken::new(),
+            &Progress::default(),
+        )
+        .unwrap();
+        assert_eq!(got, want, "{name}");
+    }
+}

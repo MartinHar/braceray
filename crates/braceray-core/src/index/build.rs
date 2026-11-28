@@ -142,6 +142,11 @@ fn build_in_pool(
     progress: &Progress,
 ) -> Result<Index, Error> {
     progress.reset(2 * bytes.len() as u64);
+    let node_cap =
+        (opts.budget_for(bytes.len() as u64) / std::mem::size_of::<Node>() as u64).max(1) as usize;
+    if let Some(index) = early_error(bytes, node_cap, cancel)? {
+        return Ok(index);
+    }
     let chunk_size = opts.chunk_size.clamp(64, MAX_CHUNK);
     let ranges: Vec<(usize, usize)> = (0..bytes.len())
         .step_by(chunk_size)
@@ -149,31 +154,22 @@ fn build_in_pool(
         .collect();
 
     // Phase A + line table.
-    let (summaries, block_newlines) = rayon::join(
+    let (summaries, lines) = rayon::join(
         || {
             ranges
                 .par_iter()
                 .map(|&(s, e)| chunk::summarize(&simd, &bytes[s..e], cancel, progress))
                 .collect::<Option<Vec<_>>>()
         },
-        || {
-            bytes
-                .par_chunks(LINE_BLOCK)
-                .map(|b| {
-                    (!cancel.is_cancelled()).then(|| memchr::memchr_iter(b'\n', b).count() as u64)
-                })
-                .collect::<Option<Vec<_>>>()
-        },
+        || line_table(bytes, cancel),
     );
     let summaries = summaries.ok_or(Error::Cancelled)?;
-    let lines = LineTable::from_block_counts(block_newlines.ok_or(Error::Cancelled)?);
+    let lines = lines?;
 
     // Phase B.
     let states = chunk::start_states(&summaries);
 
     // Phase C + consumer, pipelined batch by batch.
-    let node_cap =
-        (opts.budget_for(bytes.len() as u64) / std::mem::size_of::<Node>() as u64).max(1) as usize;
     // Progress is reported by the workers (bytes tokenized), not by the parser.
     let mut parser = Parser::new(bytes, None, cancel, None);
     let batch = (rayon::current_num_threads() * 2).max(2);
@@ -228,6 +224,50 @@ fn build_in_pool(
         Err(Stop::TooManyNodes) => return Err(Error::FileTooLarge),
     };
     Ok(parser.finish(fail, lines))
+}
+
+/// Files bigger than this get a sequential look at their first [`PROBE`] bytes first.
+const PROBE_MIN_FILE: usize = 4 * PROBE;
+/// Prefix read by the reference parser before the parallel build (I-018).
+const PROBE: usize = 1 << 20;
+
+/// A file that isn't JSON from its first bytes (a renamed CSV, a log, binary after a small
+/// value) would otherwise be summarized and line-counted in full before the parser reaches
+/// the error. The reference parser reads the first [`PROBE`] bytes in order; an error it
+/// finds there is the file's first error, so the index is finished from that parser and
+/// only the line table is still built over the whole file. Returns `None` when the prefix
+/// is valid (or holds more nodes than the build would keep), and the normal build runs.
+fn early_error(
+    bytes: &[u8],
+    node_cap: usize,
+    cancel: &CancelToken,
+) -> Result<Option<Index>, Error> {
+    if bytes.len() < PROBE_MIN_FILE {
+        return Ok(None);
+    }
+    let mut probe = Parser::new(bytes, None, cancel, None);
+    let fail = match probe.catch_up(PROBE) {
+        Err(Stop::Invalid(f)) => f,
+        Err(Stop::Cancelled) => return Err(Error::Cancelled),
+        Ok(()) | Err(Stop::TooManyNodes) => return Ok(None),
+    };
+    // The parallel build compacts above `node_cap`; keep results identical by leaving
+    // such prefixes to it.
+    if probe.node_count() > node_cap {
+        return Ok(None);
+    }
+    let lines = line_table(bytes, cancel)?;
+    Ok(Some(probe.finish(Some(fail), lines)))
+}
+
+/// Newline counts per block over the whole file, in parallel.
+fn line_table(bytes: &[u8], cancel: &CancelToken) -> Result<LineTable, Error> {
+    let counts = bytes
+        .par_chunks(LINE_BLOCK)
+        .map(|b| (!cancel.is_cancelled()).then(|| memchr::memchr_iter(b'\n', b).count() as u64))
+        .collect::<Option<Vec<_>>>()
+        .ok_or(Error::Cancelled)?;
+    Ok(LineTable::from_block_counts(counts))
 }
 
 /// Runs the parser over one batch of token lists (chunk `k` of the batch starts at
