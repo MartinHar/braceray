@@ -42,7 +42,7 @@
 | 08 | Raw text view | MVP | ✅ | 2026-11-27 | 2026-11-27 | ebda464 (8a), d4c6a23 (8b) |
 | 09 | Search engine (core) | MVP | ✅ | 2026-11-27 | 2026-11-27 | 2419a48 |
 | 10 | Search UI | MVP | ⚠️ | 2026-11-27 | 2026-11-27 | de4c6e2 (10a), e8bbdd6 (10b) |
-| 11 | Breadcrumbs & copy | MVP | ✅ | 2026-11-28 | 2026-11-28 | fd02f47 (11a), 2bb48fc (fix), COMMIT_11B (11b) |
+| 11 | Breadcrumbs & copy | MVP | ✅ | 2026-11-28 | 2026-11-28 | fd02f47 (11a), 2bb48fc (fix), d6bf770 (11b) |
 | 12 | MVP hardening & release v0.1.0 | MVP | ⬜ | | | |
 | 13 | Advanced search (regex, keys/values) | v1 | ⬜ | | | |
 | 14 | JSONPath queries | v1 | ⬜ | | | |
@@ -620,7 +620,7 @@ Newest first. One entry per Claude Code session (keep each entry 3–6 lines).
 - Did: step 11 end to end. Core path formats (JSONPath / jq / JavaScript / Pointer) checked against `serde_json_path`, `Value::pointer`, jq 1.7.1 and node; streaming copy formatter (exact serde pretty for compact input, 10 MB pretty in 13 ms); `TreeModel::ancestors`. App breadcrumb bar (collapse, all levels, hover sibling list), copy path button + format menu + Ctrl/Cmd+Shift+C, copy value styles, size guard with Export…, settings. Checked in the app on `orders_2g`, a 1M array and `deep_100k` via egui-mcp; fixed two things found that way (spinner for unprepared segments, scrolling "all levels" area)
 - Security review: pretty copy of deeply nested input grew with depth² between checks → indentation cap, output-based checks, output limit (2bb48fc)
 - Tests: 288 passed, 0 failed, 9 ignored · fmt/clippy (incl. x86_64 macOS) / deny clean · benches within 10 % on a re-run (first run under load)
-- Commits: fd02f47, 2bb48fc, COMMIT_11B; not pushed
+- Commits: fd02f47, 2bb48fc, d6bf770; not pushed
 - Next: Martin reviews step 11; then step 12
 
 ### 2026-11-27 (7) · Step 10 review
