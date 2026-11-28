@@ -19,11 +19,13 @@ const NOTICE: std::time::Duration = std::time::Duration::from_secs(4);
 /// Prefix of the preview strip text ("Preview: indexing… 37 %").
 pub const PREVIEW_LABEL: &str = "Preview: indexing…";
 
-/// Draws tab `i`; returns the number of tree rows drawn (debug overlay).
+/// Draws tab `i` with the panes `(tree, raw)` that are switched on (at least one); returns
+/// the number of rows drawn (debug overlay).
 pub fn show(
     ui: &mut egui::Ui,
     i: usize,
     tab: &mut OpenDocument,
+    (show_tree, show_raw): (bool, bool),
     repaint: &Repaint,
     actions: &mut Vec<Action>,
 ) -> usize {
@@ -53,34 +55,50 @@ pub fn show(
             }
             let focus = tab.panes.focus;
             let full_width = ui.available_width();
-            let tree_panel = egui::Panel::left(("tree_pane", tab_id))
-                .resizable(true)
-                .default_size((full_width * 0.45).max(260.0))
-                .size_range(200.0..=(full_width - 200.0).max(200.0))
-                .frame(egui::Frame::NONE.inner_margin(egui::Margin {
-                    right: 6,
-                    ..egui::Margin::ZERO
-                }))
-                .show(ui, |ui| {
-                    let cx = tree::TreeContext {
-                        tab_id,
-                        repaint,
-                        rows_drawn: &mut rows_drawn,
-                        keys: focus == Pane::Tree,
-                        search: Some(&tab.search),
-                    };
-                    tree::show(ui, view, cx, actions);
-                });
+            let mut draw_tree = |ui: &mut egui::Ui, rows_drawn: &mut usize| {
+                let cx = tree::TreeContext {
+                    tab_id,
+                    repaint,
+                    rows_drawn,
+                    keys: focus == Pane::Tree || !show_raw,
+                    search: Some(&tab.search),
+                };
+                tree::show(ui, view, cx, actions);
+            };
+            let tree_rect = if !show_tree {
+                None
+            } else if show_raw {
+                let panel = egui::Panel::left(("tree_pane", tab_id))
+                    .resizable(true)
+                    .default_size((full_width * 0.45).max(260.0))
+                    .size_range(200.0..=(full_width - 200.0).max(200.0))
+                    .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+                        right: 6,
+                        ..egui::Margin::ZERO
+                    }))
+                    .show(ui, |ui| draw_tree(ui, &mut rows_drawn));
+                Some(panel.response.rect)
+            } else {
+                // Raw pane hidden: the tree takes the whole area.
+                let rect = ui.available_rect_before_wrap();
+                draw_tree(ui, &mut rows_drawn);
+                Some(rect)
+            };
             let pressed =
                 ui.input(|i| i.pointer.primary_pressed() || i.pointer.secondary_pressed());
-            if pressed && ui.rect_contains_pointer(tree_panel.response.rect) {
+            if pressed && tree_rect.is_some_and(|r| ui.rect_contains_pointer(r)) {
                 tab.panes.focus = Pane::Tree;
             }
-            if let Some(raw_view) = tab.panes.raw.as_mut() {
+            let raw_view = if show_raw {
+                tab.panes.raw.as_mut()
+            } else {
+                None
+            };
+            if let Some(raw_view) = raw_view {
                 let cx = raw::RawContext {
                     tab_id,
                     repaint,
-                    focused: focus == Pane::Raw,
+                    focused: focus == Pane::Raw || !show_tree,
                     search: Some(&tab.search),
                 };
                 let out = raw::show(ui, raw_view, view, cx);

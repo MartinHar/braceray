@@ -206,7 +206,13 @@ impl BracerayApp {
                 egui::Frame::side_top_panel(ui.style()).inner_margin(egui::Margin::symmetric(8, 6)),
             )
             .show(ui, |ui| {
-                ui::toolbar::show(ui, &self.tabs, self.active, &mut actions)
+                ui::toolbar::show(
+                    ui,
+                    &self.tabs,
+                    self.active,
+                    (self.settings.show_tree, self.settings.show_raw),
+                    &mut actions,
+                )
             });
         if !self.tabs.is_empty() {
             let active = self.active;
@@ -239,7 +245,14 @@ impl BracerayApp {
         self.results_panel(ui, &repaint, &mut actions);
         let rows_drawn = egui::CentralPanel::default()
             .show(ui, |ui| match self.tabs.get_mut(active) {
-                Some(tab) => ui::body::show(ui, active, tab, &repaint, &mut actions),
+                Some(tab) => ui::body::show(
+                    ui,
+                    active,
+                    tab,
+                    (self.settings.show_tree, self.settings.show_raw),
+                    &repaint,
+                    &mut actions,
+                ),
                 None => {
                     ui::empty::show(
                         ui,

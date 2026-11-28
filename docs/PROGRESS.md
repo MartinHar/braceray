@@ -14,7 +14,7 @@
 | **Current step** | 12 — MVP hardening & release v0.1.0 |
 | **Status** | 🟦 In progress |
 | **Current sub-task** | 12b robustness (backlog items left), then 12c branding |
-| **Next action** | 12b backlog: I-013 pane toggles, then I-012/I-016, I-009, I-007; then 12c icon + About |
+| **Next action** | 12b backlog: I-012/I-016, then I-009, I-007; then 12c icon + About |
 | **Last updated** | 2026-11-28 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -621,7 +621,7 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
   - [x] Open every catalogue fixture (encoding, `invalid_*`, 5 GB sparse) through the UI via egui-mcp: no panics, clear messages (36 files: all 9 encoding cases, 13 `invalid_*` incl. the 1 GB "error at the end", 5 GiB sparse, deep / wide / prim / huge string, orders 10m / 2g pretty + minified, NDJSON, diff; "Open anyway" shows the valid prefix)
   - [x] Close a tab during indexing / search / copy: memory back to baseline, no panics; modify the file during indexing → reload banner. Heap back to 6.6 MB (`alloc-stats`); RSS can keep up to ~1 index of freed allocator pages for a while but doesn't grow over open/close cycles (I-017). Append / overwrite / delete → banner + Reload; **truncate crashed with SIGBUS → fixed with a SIGBUS guard (ADR 028)**
   - [x] CI runs `cargo test` again + generates the 100 MB fixture set (I-001, I-002); fix the known test flakes (I-011 ✅; I-010 not seen in CI so far). Fixed on the way: job repaint race, Windows `\` paths and 100 ns mtimes, search `wait_jump` returning before the tree reveal, cancel headroom on CI
-  - [ ] Open backlog items planned for step 12 — Martin (2026-11-28): fix them now. Done: I-018 (early error), I-017 (investigated, won't fix). To do: I-013 pane toggles, I-012/I-016 deep reveal / path, I-009 adaptive scan, I-007 macOS Open With
+  - [ ] Open backlog items planned for step 12 — Martin (2026-11-28): fix them now. Done: I-018 (early error), I-017 (investigated, won't fix), I-013 (pane toggles). To do: I-012/I-016 deep reveal / path, I-009 adaptive scan, I-007 macOS Open With
 - 12c branding
   - [ ] Icon SVG (`{ }` + cyan scan beam on a dark rounded square) → PNG 1024…16, `.icns`, `.ico`; window icon via `ViewportBuilder::with_icon`
   - [ ] About dialog: name, version, tagline, MIT, GitHub link, third-party licenses viewer
@@ -777,7 +777,7 @@ Issues found during the build that are not fixed yet.
 | I-010 | 07 | Low | Rare app test flakes: in ~50 `cargo test` runs, once `open_shows_progress_then_done_and_cancel_works` hit the 20 s `step_until` timeout (which wait wasn't captured) and once `settings_round_trip_through_the_window` didn't find "Cache indexes on disk" (under an artificial all-cores load). Not reproduced in 40 further loaded runs of `shell` + `tree`. Check again when CI runs tests | 12 | Open |
 | I-011 | 08 | Low | `index_build::cancel_returns_quickly` flakes (≈ 1 in 4 runs of the whole binary: 57–60 ms vs the 50 ms limit) because the binary's 10,000-case proptests load every core at the same time; passes alone. Reproduced on the step 07 commit. Fix: run it in its own test binary or under a lock with the proptests | 12 | Resolved (step 12: own binary `tests/index_cancel.rs`; 3/3 green while 3 fuzzers ran) |
 | I-012 | 08 | Low | Revealing a value tens of thousands of levels deep (raw click / Go to in `deep_100k`, depth 56,250) costs one 20–60 ms frame: `TreeModel::reveal` expands level by level on the UI thread, O(depth × segments). Fix: insert the whole chain of segments in one pass, or reveal on a worker | 12 | Open |
-| I-013 | 08 | Low | Tree and raw panes can't be hidden yet (architecture §7: "either can be hidden"); only the split is resizable. Add View toggles (toolbar + shortcuts) and persist them | 12 | Open |
+| I-013 | 08 | Low | Tree and raw panes can't be hidden yet (architecture §7: "either can be hidden"); only the split is resizable. Add View toggles (toolbar + shortcuts) and persist them | 12 | Resolved (step 12: Tree / Raw toggles in the toolbar, Ctrl/Cmd+1 / Ctrl/Cmd+2, never both hidden, saved in the settings; kittest `tests/panes.rs`, checked in the app) |
 | I-015 | 10 | Low | Search shortcuts (Ctrl+F, Ctrl+Shift+F, F3/Shift+F3, Enter/Shift+Enter, Esc) checked on macOS and in kittests with egui told it runs on Windows, but not on a real Windows machine | 12 | Open |
 | I-014 | 09 | Medium | Search workers run on the global rayon pool, which the index build also uses. A search started while a 2 GB index builds may wait for pool threads (up to the build time) before its first result; seen in a test where one search's workers queued ~40 ms behind another's. Fix in step 10: a dedicated search pool (or a few dedicated threads), measured with "first result < 200 ms" during indexing | 10 | Resolved (step 10: own search pool; first result 17–35 ms during a 2 GB build) |
 | I-016 | 11 | Low | Copy path (button, menu, Ctrl/Cmd+Shift+C) of a value tens of thousands of levels deep builds the path on the UI thread, O(depth) row reads: one ~17 ms frame at depth 56,250 (`deep_100k`). Fix: build the path from the address on a worker, together with I-012 | 12 | Open |

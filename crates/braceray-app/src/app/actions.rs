@@ -108,6 +108,7 @@ impl BracerayApp {
             }
             Action::FocusSearch => self.search.focus = true,
             Action::ToggleResults => self.search.results_open = !self.search.results_open,
+            Action::TogglePane(view) => self.toggle_pane(view),
             Action::CloseSearch => {
                 self.search.results_open = false;
                 if let Some(t) = self.tabs.get_mut(self.active) {
@@ -220,5 +221,33 @@ fn open_external(path: &std::path::Path) {
     };
     if let Err(e) = cmd.arg(path).spawn() {
         tracing::warn!("can't open {}: {e}", path.display());
+    }
+}
+
+impl BracerayApp {
+    /// Shows or hides a pane, keeping at least one visible, and moves the keyboard focus off
+    /// a pane that was just hidden.
+    fn toggle_pane(&mut self, view: ui::View) {
+        let s = &mut self.settings;
+        match view {
+            ui::View::Tree => s.show_tree = !s.show_tree,
+            ui::View::Raw => s.show_raw = !s.show_raw,
+        }
+        if !s.show_tree && !s.show_raw {
+            match view {
+                ui::View::Tree => s.show_raw = true,
+                ui::View::Raw => s.show_tree = true,
+            }
+        }
+        let (tree, raw) = (s.show_tree, s.show_raw);
+        for tab in &mut self.tabs {
+            let focus = &mut tab.panes.focus;
+            if *focus == crate::panes::Pane::Tree && !tree {
+                *focus = crate::panes::Pane::Raw;
+            } else if *focus == crate::panes::Pane::Raw && !raw {
+                *focus = crate::panes::Pane::Tree;
+            }
+        }
+        self.store.save(&self.settings);
     }
 }

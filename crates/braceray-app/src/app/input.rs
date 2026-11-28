@@ -39,6 +39,11 @@ impl BracerayApp {
             if i.consume_shortcut(&KeyboardShortcut::new(cmd_shift, Key::F)) {
                 actions.push(Action::ToggleResults);
             }
+            for view in [crate::ui::View::Tree, crate::ui::View::Raw] {
+                if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, view.key())) {
+                    actions.push(Action::TogglePane(view));
+                }
+            }
             if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::F)) {
                 actions.push(Action::FocusSearch);
             }

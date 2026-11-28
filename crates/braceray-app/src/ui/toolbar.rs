@@ -2,12 +2,18 @@
 
 use eframe::egui::{self, RichText, Role};
 
-use super::{Action, label_icon};
+use super::{Action, View, label_icon};
 use crate::tab::{OpenDocument, TabState};
 use crate::theme;
 
 /// Draws the toolbar and the tab strip.
-pub fn show(ui: &mut egui::Ui, tabs: &[OpenDocument], active: usize, actions: &mut Vec<Action>) {
+pub fn show(
+    ui: &mut egui::Ui,
+    tabs: &[OpenDocument],
+    active: usize,
+    panes: (bool, bool),
+    actions: &mut Vec<Action>,
+) {
     ui.horizontal(|ui| {
         if ui
             .button("Open file…")
@@ -20,7 +26,7 @@ pub fn show(ui: &mut egui::Ui, tabs: &[OpenDocument], active: usize, actions: &m
 
         egui::ScrollArea::horizontal()
             .id_salt("tab_strip")
-            .max_width(ui.available_width() - 110.0)
+            .max_width(ui.available_width() - 210.0)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     for (i, tab) in tabs.iter().enumerate() {
@@ -38,6 +44,26 @@ pub fn show(ui: &mut egui::Ui, tabs: &[OpenDocument], active: usize, actions: &m
             let gear = ui.button("Settings").on_hover_text("Settings");
             if gear.clicked() {
                 actions.push(Action::ToggleSettings);
+            }
+            ui.separator();
+            // Right to left: Raw is drawn first so the order reads "Tree Raw".
+            for (view, shown) in [(View::Raw, panes.1), (View::Tree, panes.0)] {
+                let key = match view.key() {
+                    egui::Key::Num1 => "1",
+                    _ => "2",
+                };
+                let verb = if shown { "Hide" } else { "Show" };
+                let b = ui
+                    .add(egui::Button::selectable(shown, view.label()))
+                    .on_hover_text(format!(
+                        "{verb} the {} pane ({})",
+                        view.label().to_lowercase(),
+                        shortcut(ui, key)
+                    ));
+                label_icon(&b, Role::Button, &format!("{} pane", view.label()));
+                if b.clicked() {
+                    actions.push(Action::TogglePane(view));
+                }
             }
         });
     });

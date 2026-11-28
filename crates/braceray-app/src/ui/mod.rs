@@ -73,6 +73,9 @@ pub enum Action {
     SearchJump(usize),
     /// Show or hide the results panel.
     ToggleResults,
+    /// Show or hide the tree or the raw pane (the other one is shown if both would be
+    /// hidden).
+    TogglePane(View),
     /// Esc in an empty search field: hide the results and leave the field.
     CloseSearch,
     /// Search for a text from the history.
@@ -94,6 +97,33 @@ pub enum Action {
     CancelGuard,
     /// Stop a running copy or export.
     CancelCopy,
+}
+
+/// A content pane that can be hidden.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    /// The tree (left).
+    Tree,
+    /// The raw text view (right).
+    Raw,
+}
+
+impl View {
+    /// Toolbar label.
+    pub fn label(self) -> &'static str {
+        match self {
+            View::Tree => "Tree",
+            View::Raw => "Raw",
+        }
+    }
+
+    /// Key used with Ctrl/Cmd to toggle it.
+    pub fn key(self) -> egui::Key {
+        match self {
+            View::Tree => egui::Key::Num1,
+            View::Raw => egui::Key::Num2,
+        }
+    }
 }
 
 /// Sets the accessible name of an icon-only widget (screen readers, kittest, egui_mcp).

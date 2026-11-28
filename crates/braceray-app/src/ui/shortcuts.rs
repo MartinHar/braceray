@@ -24,6 +24,7 @@ pub const SHORTCUTS: &[(&str, &str, bool)] = &[
         true,
     ),
     ("Mod+Shift+F", "Show / hide the results panel", true),
+    ("Mod+1 / Mod+2", "Show / hide the tree / the raw pane", true),
     (
         "↑ / ↓, Enter (results)",
         "Move in the results list / jump to the result",
