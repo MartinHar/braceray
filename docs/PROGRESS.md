@@ -14,7 +14,7 @@
 | **Current step** | 12 — MVP hardening & release v0.1.0 |
 | **Status** | 🟦 In progress |
 | **Current sub-task** | 12b robustness (backlog items left), then 12c branding |
-| **Next action** | 12b backlog: I-007 macOS Open With (needs `unsafe` in the app: ask Martin); then 12c icon + About |
+| **Next action** | 12c icon + About; then 12d packaging incl. I-007 (Martin OK'd the `unsafe`) |
 | **Last updated** | 2026-11-28 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
@@ -25,6 +25,7 @@
 - [x] 2026-11-27 · Step 05 · `directories` depends on `option-ext` (MPL-2.0, not on the allow-list) · Resolved: Martin chose to keep the std-only folder lookup (ADR 014); no `directories`, no MPL exception
 - [x] 2026-11-27 · Step 06 · Installing `egui_mcp` was blocked by Claude Code's permission policy · Resolved: Martin installed it (binary `egui-mcp`); driven over stdio JSON-RPC. Register with `claude mcp add egui -- egui-mcp` to get the tools natively
 - [x] 2026-11-27 · Step 10 · "First results < 200 ms" is met from the search start (17–35 ms), but from the keystroke it is 150 ms debounce + 1–2 frames ≈ 170–220 ms · Is measuring from the search start OK, or should the debounce go down (e.g. 100 ms) so it holds from the keystroke too? Not blocking · Resolved: Martin checked the app ("all looks good"); the 150 ms debounce stays
+- [x] 2026-11-28 · Step 12 · I-007 macOS "Open With" needs `unsafe` (objc2 app delegate) in the app crate · Resolved: Martin OK'd the `unsafe` for this; built with the `.app` packaging in 12d (add the module to the CLAUDE.md exception list then). Windows needs no code: Explorer passes the file as a command-line argument, which already works
 <!-- Format: - [ ] YYYY-MM-DD · Step NN · question or blocker · what you need from me -->
 
 ---
