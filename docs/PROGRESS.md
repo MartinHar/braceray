@@ -12,10 +12,10 @@
 | Field | Value |
 |---|---|
 | **Current step** | 11 — Breadcrumbs & copy |
-| **Status** | ⬜ Not started |
-| **Current sub-task** | — |
-| **Next action** | Start step 11 (breadcrumbs & copy) |
-| **Last updated** | 2026-11-27 |
+| **Status** | 🟦 In progress |
+| **Current sub-task** | 11b app: breadcrumb bar, copy actions, size guard |
+| **Next action** | `TreeModel` ancestor rows + cached breadcrumb chain in `TreeView`, then `ui/breadcrumb.rs` |
+| **Last updated** | 2026-11-28 |
 | **Last session by** | Claude Code |
 | **Latest version** | — (no release yet) |
 | **CI on `main`** | Run 46037886367 (commit b70d2df): Windows ✅ macOS ✅ Linux ✅ deny ✅ |
@@ -42,7 +42,7 @@
 | 08 | Raw text view | MVP | ✅ | 2026-11-27 | 2026-11-27 | ebda464 (8a), d4c6a23 (8b) |
 | 09 | Search engine (core) | MVP | ✅ | 2026-11-27 | 2026-11-27 | 2419a48 |
 | 10 | Search UI | MVP | ⚠️ | 2026-11-27 | 2026-11-27 | de4c6e2 (10a), e8bbdd6 (10b) |
-| 11 | Breadcrumbs & copy | MVP | ⬜ | | | |
+| 11 | Breadcrumbs & copy | MVP | 🟦 | 2026-11-28 | | |
 | 12 | MVP hardening & release v0.1.0 | MVP | ⬜ | | | |
 | 13 | Advanced search (regex, keys/values) | v1 | ⬜ | | | |
 | 14 | JSONPath queries | v1 | ⬜ | | | |
@@ -563,6 +563,32 @@ Template for each step. When a step **starts**, copy its acceptance criteria fro
 
 **Decisions** (also in docs/DECISIONS.md)
 - 024: one bar for all tabs, disabled v1 controls, cursor from the selection, retry while searching, lazy row info, highlight sources, history rule, copy-all to file above 10k, own search pool, how "first result < 200 ms" is measured.
+
+### Step 11 — Breadcrumbs & copy
+**Status:** 🟦 In progress · **Started:** 2026-11-28 · **Finished:** —
+
+**Plan**
+- [x] Core `path/`: `PathFormat` (JSONPath RFC 9535, jq, JavaScript with root name, JSON Pointer), quoting/escaping per format, reserved words; `decode_string` (shared with `decode_key`); split into `path/{mod,decode,tests}.rs`
+- [x] Core tests: table tests (spaces, quotes, dots, unicode, empty, numeric-looking, reserved words, control chars) for every format; proptest random keys → path → resolve with a reference (`serde_json_path` for JSONPath, `Value::pointer`) → same value; optional `jq` / `node` check when installed
+- [x] Core `copy`: streaming re-formatter for a byte range (raw, pretty with indent, minified, string contents) with cancel + progress, no DOM; tests vs serde (parsed values equal), bench 10 MB < 300 ms
+- [ ] App: `TreeModel` ancestor rows + `TreeView` cached breadcrumb chain and path segments of the selection
+- [ ] App `ui/breadcrumb.rs`: bar under the toolbar, clickable segments, collapse in the middle with `…` to expand, sibling dropdown on hover (first 200 + "…", virtualized), copy-path button + format dropdown (last choice in settings)
+- [ ] App copy: context menu (Copy path ▸ formats, Copy value / formatted / minified / key / string contents), copy job with progress for big values, size guard dialog (> 50 MB setting: Export… / Copy anyway / Cancel), export raw range via save dialog on a worker, toasts ("Copied JSONPath", "Copied 12.4 MB")
+- [ ] Shortcuts: Ctrl/Cmd+Shift+C copy path (last format), Ctrl/Cmd+C copy value when the tree has focus; shortcuts dialog
+- [ ] Settings: path format, JS root name, copy size limit (settings window)
+- [ ] kittests: breadcrumb click selects the ancestor, sibling dropdown jumps, copy actions produce the expected clipboard text, size guard appears above the limit, 1M-child array navigation
+- [ ] Check in the app with egui-mcp (1M-child array, deep file, big value copy)
+- [ ] Docs: DECISIONS, PERF, CHANGELOG, PROGRESS
+
+**Acceptance criteria** (copied from the step file)
+- [x] Paths for keys with spaces, quotes, dots, unicode, empty string, numeric-looking keys and reserved words are correct in every format (table-driven tests). (`path::tests::expected_text_per_format`, 30 tricky keys × 4 formats, top level and nested)
+- [x] Each copied path, evaluated by a reference implementation over `serde_json::Value` (JSONPath / Pointer in tests; jq if available in CI, optional), returns the selected value. (`serde_json_path` (RFC 9535) + `Value::pointer`: table, proptest of random keys with/without `\u` escapes, and every value of random documents via `node_at_offset` + `path_of`; jq 1.7.1 and node 23 run the jq / JavaScript paths when installed)
+- [ ] Copying a 10 MB object takes < 300 ms; copy formatted equals the serde pretty output (whitespace style aside: compare parsed values).
+- [ ] The size guard triggers above the limit.
+- [ ] Breadcrumb navigation and sibling dropdown work on a 1M-child array.
+
+**Quality gates (last run)**
+- [ ] fmt · [ ] clippy · [ ] tests · [ ] cargo deny · [ ] benches
 
 ---
 

@@ -133,6 +133,16 @@ pub enum Error {
         feature: &'static str,
     },
 
+    /// Writing an export (or another output file) failed.
+    #[error("Can't write {}: {source}", path.display())]
+    Write {
+        /// The file being written.
+        path: PathBuf,
+        /// The OS error.
+        #[source]
+        source: io::Error,
+    },
+
     /// The OS refused to memory-map the file.
     #[error("Can't map this file (network drive?). Copy it locally. ({source})")]
     Mmap {
