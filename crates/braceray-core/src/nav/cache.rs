@@ -18,11 +18,17 @@ pub(crate) struct Checkpoints {
     pub(crate) count: u64,
     /// Offset of child `k × CHECKPOINT_EVERY` (before its leading whitespace is skipped).
     pub(crate) starts: Vec<usize>,
+    /// `(start, end)` of the children that are containers the index doesn't store and
+    /// span more than [`SYNC_SCAN_BYTES`](super::SYNC_SCAN_BYTES), in order: reads on the
+    /// UI thread take their ends from here instead of scanning them (I-009).
+    pub(crate) big_ends: Vec<(usize, usize)>,
 }
 
 impl Checkpoints {
     fn cost(&self) -> usize {
-        self.starts.capacity() * std::mem::size_of::<usize>() + 64
+        self.starts.capacity() * std::mem::size_of::<usize>()
+            + self.big_ends.capacity() * std::mem::size_of::<(usize, usize)>()
+            + 64
     }
 }
 
@@ -145,6 +151,7 @@ mod tests {
         Arc::new(Checkpoints {
             count: n as u64,
             starts: vec![0; n],
+            big_ends: Vec::new(),
         })
     }
 

@@ -196,7 +196,8 @@ impl<'a> Navigator<'a> {
     /// The top-level value, if there is one.
     pub fn root(&self) -> Option<Child> {
         let pos = scan::skip_ws(self.bytes, 0, self.bytes.len());
-        self.value_at(pos, self.bytes.len(), None, None)
+        let mut ends = scan::Ends::unlimited(&[]);
+        self.value_at(pos, self.bytes.len(), None, None, &mut ends)
     }
 
     /// The top-level container (`None` for a top-level scalar or an empty document).

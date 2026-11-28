@@ -46,19 +46,23 @@ impl Navigator<'_> {
         } else {
             Some(self.checkpoints(c))
         };
-        self.read_children(c, cps.as_deref(), range)
+        self.read_children(c, cps.as_deref(), range, None)
+            .unwrap_or_default()
     }
 
     /// Like [`children`](Self::children), but `None` instead of building a big checkpoint
-    /// table. Ranges within the first [`CHECKPOINT_EVERY`] children, ranges near the last
-    /// read position and containers of at most [`SYNC_SCAN_BYTES`] are always ready.
+    /// table or scanning a child container the index doesn't store that is bigger than
+    /// [`SYNC_SCAN_BYTES`] (a 100 MB nested array in adaptive mode). Ranges within the
+    /// first [`CHECKPOINT_EVERY`] children, ranges near the last read position and
+    /// containers of at most [`SYNC_SCAN_BYTES`] are ready unless they contain such a
+    /// child; [`prepare`](Self::prepare) records those and makes them ready.
     pub fn children_if_ready(&self, c: &Container, range: Range<u64>) -> Option<Vec<Child>> {
         let cps = if self.reachable_without_table(c, range.start) {
             self.cache().get(c.start)
         } else {
             Some(self.ready_checkpoints(c)?)
         };
-        Some(self.read_children(c, cps.as_deref(), range))
+        self.read_children(c, cps.as_deref(), range, Some(SYNC_SCAN_BYTES))
     }
 
     /// Builds and caches the checkpoint table of `c` (for workers). After this,
@@ -69,6 +73,8 @@ impl Navigator<'_> {
     /// # Errors
     /// [`Error::Cancelled`] when `cancel` fires (checked every 65,536 children).
     pub fn prepare(&self, c: &Container, cancel: &CancelToken) -> Result<(), Error> {
+        // A table is built with every big child end recorded, so once it is cached the
+        // `*_if_ready` reads of `c` never need more than their scan budget.
         if self.cache().get(c.start).is_none() {
             let cps = Arc::new(self.build_checkpoints(c, Some(cancel))?);
             self.cache().insert(c.start, cps);
@@ -119,6 +125,7 @@ impl Navigator<'_> {
             Err(_) => Checkpoints {
                 count: 0,
                 starts: vec![c.start as usize + 1],
+                big_ends: Vec::new(),
             },
         };
         let cps = Arc::new(built);
@@ -135,6 +142,7 @@ impl Navigator<'_> {
         let mut count = 0u64;
         let mut pos = c.start as usize + 1;
         let mut hint = self.first_node_after(pos);
+        let mut ends = scan::Ends::unlimited(&[]);
         loop {
             if count.is_multiple_of(CHECKPOINT_EVERY) {
                 starts.push(pos);
@@ -144,28 +152,41 @@ impl Navigator<'_> {
             {
                 token.check()?;
             }
-            let Some((_, next)) = self.child_at(c, pos, Some(&mut hint)) else {
+            let Some((_, next)) = self.child_at(c, pos, Some(&mut hint), &mut ends) else {
                 break;
             };
             count += 1;
             pos = next;
         }
         starts.shrink_to_fit();
-        Ok(Checkpoints { count, starts })
+        let mut big_ends = ends.found;
+        big_ends.shrink_to_fit();
+        Ok(Checkpoints {
+            count,
+            starts,
+            big_ends,
+        })
     }
 
     /// Reads children `range` starting from the best known position: the cursor, the
-    /// checkpoint before `range.start`, or the container start.
+    /// checkpoint before `range.start`, or the container start. With a `cap`, `None` when
+    /// an unindexed child container longer than that has no recorded end.
     fn read_children(
         &self,
         c: &Container,
         cps: Option<&Checkpoints>,
         range: Range<u64>,
-    ) -> Vec<Child> {
+        cap: Option<u64>,
+    ) -> Option<Vec<Child>> {
         let end = cps.map_or(range.end, |t| range.end.min(t.count));
         if range.start >= end {
-            return Vec::new();
+            return Some(Vec::new());
         }
+        let known = cps.map_or(&[][..], |t| &t.big_ends[..]);
+        let mut ends = match cap {
+            Some(b) => scan::Ends::capped(known, b),
+            None => scan::Ends::unlimited(known),
+        };
         let (mut idx, mut pos) = (0u64, c.start as usize + 1);
         if let Some(t) = cps {
             let k = ((range.start / CHECKPOINT_EVERY) as usize).min(t.starts.len() - 1);
@@ -180,7 +201,7 @@ impl Navigator<'_> {
         let mut hint = self.first_node_after(pos);
         let mut out = Vec::with_capacity((end - range.start).min(4096) as usize);
         while idx < end {
-            let Some((child, next)) = self.child_at(c, pos, Some(&mut hint)) else {
+            let Some((child, next)) = self.child_at(c, pos, Some(&mut hint), &mut ends) else {
                 break;
             };
             if idx >= range.start {
@@ -189,10 +210,13 @@ impl Navigator<'_> {
             idx += 1;
             pos = next;
         }
+        if ends.exceeded {
+            return None;
+        }
         if idx > range.start {
             self.cache().set_cursor(c.start, idx, pos);
         }
-        out
+        Some(out)
     }
 
     /// Child of `c` whose key or value contains `offset`, with its index.
@@ -208,8 +232,9 @@ impl Navigator<'_> {
         let mut pos = cps.starts[k];
         let mut idx = k as u64 * CHECKPOINT_EVERY;
         let mut hint = self.first_node_after(pos);
+        let mut ends = scan::Ends::unlimited(&cps.big_ends);
         while idx < cps.count {
-            let (child, next) = self.child_at(c, pos, Some(&mut hint))?;
+            let (child, next) = self.child_at(c, pos, Some(&mut hint), &mut ends)?;
             let first = child.key.map_or(child.value.start, |k| k.start);
             if offset < first {
                 return None; // between children
@@ -237,6 +262,7 @@ impl Navigator<'_> {
         c: &Container,
         pos: usize,
         hint: Option<&mut usize>,
+        ends: &mut scan::Ends<'_>,
     ) -> Option<(Child, usize)> {
         let bytes = self.bytes;
         let end = (c.end as usize).min(bytes.len());
@@ -261,7 +287,7 @@ impl Navigator<'_> {
             }
             ContainerKind::Array => (None, p),
         };
-        let child = self.value_at(vpos, end, key, hint)?;
+        let child = self.value_at(vpos, end, key, hint, ends)?;
         let after = scan::skip_ws(bytes, child.value.end as usize, end);
         let next = if after < end && bytes[after] == b',' {
             after + 1
@@ -282,6 +308,7 @@ impl Navigator<'_> {
         end: usize,
         key: Option<Span>,
         hint: Option<&mut usize>,
+        ends: &mut scan::Ends<'_>,
     ) -> Option<Child> {
         let bytes = self.bytes;
         let first = *bytes.get(pos).filter(|_| pos < end)?;
@@ -302,7 +329,7 @@ impl Navigator<'_> {
                 };
                 let stop = match nodes.get(i).filter(|n| n.start() == pos as u64) {
                     Some(n) => (n.end() as usize + 1).min(end),
-                    None => scan::container_end(bytes, pos, end).unwrap_or(end),
+                    None => ends.container_end(bytes, pos, end)?,
                 };
                 (kind, stop)
             }
@@ -427,5 +454,50 @@ mod tests {
         let inner = nav.container_of(&first).unwrap();
         assert!(inner.node.is_none() || idx.max_stored_depth().is_none());
         assert_eq!(nav.child_count_if_ready(&inner), Some(1));
+    }
+
+    /// A child container bigger than `SYNC_SCAN_BYTES` that the index doesn't store is not
+    /// scanned on the UI thread: `children_if_ready` says "not ready" until `prepare` has
+    /// recorded its end, then reads without scanning it (I-009).
+    #[test]
+    fn big_unstored_children_wait_for_prepare() {
+        let mut text = String::from("[{\"small\": [1, 2]}, [");
+        for i in 0..200_000 {
+            if i > 0 {
+                text.push(',');
+            }
+            text.push_str(&(i % 10).to_string());
+        }
+        text.push_str("], {\"after\": true}]");
+        let bytes = text.as_bytes();
+        let opts = IndexOptions {
+            memory_budget: 1,
+            ..IndexOptions::default()
+        };
+        let idx = build_bytes(bytes, &opts, &CancelToken::new(), &Progress::default()).unwrap();
+        let nav = Navigator::new(bytes, &idx);
+        let root = nav.root_container().unwrap();
+        let want = nav.children(&root, 0..3);
+        assert_eq!(want.len(), 3);
+        assert!((want[1].value.end - want[1].value.start) > SYNC_SCAN_BYTES);
+
+        let fresh = Navigator::new(bytes, &idx);
+        assert_eq!(
+            fresh.children_if_ready(&root, 0..1).map(|v| v.len()),
+            Some(1)
+        );
+        assert_eq!(
+            fresh.children_if_ready(&root, 0..3),
+            None,
+            "big child: not ready"
+        );
+        fresh.prepare(&root, &CancelToken::new()).unwrap();
+        assert_eq!(fresh.children_if_ready(&root, 0..3), Some(want.clone()));
+        assert_eq!(
+            fresh.children_if_ready(&root, 2..3),
+            Some(want[2..].to_vec())
+        );
+        // Blocking reads give the same with or without the recorded ends.
+        assert_eq!(fresh.children(&root, 0..3), want);
     }
 }

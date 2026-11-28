@@ -39,6 +39,67 @@ pub(crate) fn scalar_end(bytes: &[u8], pos: usize, end: usize) -> usize {
         .map_or(end, |p| pos + p)
 }
 
+/// How [`Navigator`](super::Navigator) finds the end of a container the index doesn't
+/// store while it walks children.
+#[derive(Debug, Default)]
+pub(crate) struct Ends<'a> {
+    /// Ends already known (from the parent's checkpoint table), sorted by start.
+    pub(crate) known: &'a [(usize, usize)],
+    /// UI-thread reads: most bytes scanned for one container; `None` = no limit
+    /// (workers). Containers bigger than this are recorded by `prepare`, so a read of a
+    /// prepared container never runs out.
+    pub(crate) cap: Option<u64>,
+    /// A container exceeded the cap: the read must be done by a worker (`prepare`).
+    pub(crate) exceeded: bool,
+    /// Workers: ends of scanned containers bigger than `SYNC_SCAN_BYTES`, in order.
+    pub(crate) found: Vec<(usize, usize)>,
+}
+
+impl<'a> Ends<'a> {
+    /// No budget: scan whatever is needed and record big containers.
+    pub(crate) fn unlimited(known: &'a [(usize, usize)]) -> Self {
+        Ends {
+            known,
+            ..Ends::default()
+        }
+    }
+
+    /// Scans each unknown container for at most `cap` bytes; known ends are free.
+    pub(crate) fn capped(known: &'a [(usize, usize)], cap: u64) -> Self {
+        Ends {
+            known,
+            cap: Some(cap),
+            ..Ends::default()
+        }
+    }
+
+    /// End of the unstored container starting at `pos` (bounded by `end`); `None` when it
+    /// is longer than the cap (`exceeded` is set). Malformed input gives `end`.
+    pub(crate) fn container_end(&mut self, bytes: &[u8], pos: usize, end: usize) -> Option<usize> {
+        if let Ok(i) = self.known.binary_search_by_key(&pos, |&(s, _)| s) {
+            return Some(self.known[i].1.min(end));
+        }
+        let Some(cap) = self.cap else {
+            let e = container_end(bytes, pos, end).unwrap_or(end);
+            if (e - pos) as u64 > super::SYNC_SCAN_BYTES {
+                self.found.push((pos, e));
+            }
+            return Some(e);
+        };
+        let limit = usize::try_from(cap)
+            .map_or(end, |l| pos.saturating_add(l))
+            .min(end);
+        match container_end(bytes, pos, limit) {
+            Some(e) => Some(e),
+            None if limit < end => {
+                self.exceeded = true;
+                None
+            }
+            None => Some(end),
+        }
+    }
+}
+
 /// Offset just after the bracket matching the `{` or `[` at `pos`, found with the SIMD
 /// classifier (for containers the index doesn't store).
 pub(crate) fn container_end(bytes: &[u8], pos: usize, end: usize) -> Option<usize> {
